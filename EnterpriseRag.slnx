@@ -1,4 +1,5 @@
 <Solution>
+  <Folder Name="/Solution Items/" />
   <Folder Name="/src/">
     <Project Path="src/EnterpriseRag.Core.Application/EnterpriseRag.Core.Application.csproj" />
     <Project Path="src/EnterpriseRag.Core.Domain/EnterpriseRag.Core.Domain.csproj" />
