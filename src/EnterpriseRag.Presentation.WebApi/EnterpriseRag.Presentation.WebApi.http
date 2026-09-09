@@ -1,0 +1,6 @@
+@EnterpriseRag.Presentation.WebApi_HostAddress = http://localhost:5235
+
+GET {{EnterpriseRag.Presentation.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
