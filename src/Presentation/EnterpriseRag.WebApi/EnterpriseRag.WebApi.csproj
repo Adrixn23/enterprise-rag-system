@@ -15,8 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EnterpriseRag.IoC\EnterpriseRag.IoC.csproj" />
-    <ProjectReference Include="..\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
+    <ProjectReference Include="..\..\IoC\EnterpriseRag.IoC\EnterpriseRag.IoC.csproj" />
+    <ProjectReference Include="..\..\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
   </ItemGroup>
 
 </Project>
