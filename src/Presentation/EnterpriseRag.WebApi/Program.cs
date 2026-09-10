@@ -1,8 +1,16 @@
+using EnterpriseRag.IoC;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Inyección de dependencias modularizada (Clean Architecture)
+builder.Services.AddApplicationDependencies();
+builder.Services.AddInfrastructurePersistenceDependencies(builder.Configuration);
+builder.Services.AddInfrastructureIdentityDependencies(builder.Configuration);
+builder.Services.AddInfrastructureSharedDependencies(builder.Configuration);
 
 var app = builder.Build();
 

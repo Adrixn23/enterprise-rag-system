@@ -1,9 +1,17 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/EnterpriseRag.Core.Application/EnterpriseRag.Core.Application.csproj" />
-    <Project Path="src/EnterpriseRag.Core.Domain/EnterpriseRag.Core.Domain.csproj" />
-    <Project Path="src/EnterpriseRag.Infrastructure/EnterpriseRag.Infrastructure.csproj" />
-    <Project Path="src/EnterpriseRag.IoC/EnterpriseRag.IoC.csproj" />
-    <Project Path="src/EnterpriseRag.Presentation.WebApi/EnterpriseRag.Presentation.WebApi.csproj" />
+  <Folder Name="/src/IoC/">
+    <Project Path="src/IoC/EnterpriseRag.IoC/EnterpriseRag.IoC.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/EnterpriseRag.Core.Domain/EnterpriseRag.Core.Domain.csproj" />
+    <Project Path="src/Core/EnterpriseRag.Core.Application/EnterpriseRag.Core.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Persistence/EnterpriseRag.Infrastructure.Persistence.csproj" />
+    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Identity/EnterpriseRag.Infrastructure.Identity.csproj" />
+    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Shared/EnterpriseRag.Infrastructure.Shared.csproj" />
+  </Folder>
+  <Folder Name="/src/Presentation/">
+    <Project Path="src/Presentation/EnterpriseRag.WebApi/EnterpriseRag.WebApi.csproj" />
   </Folder>
 </Solution>
