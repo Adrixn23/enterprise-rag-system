@@ -1,14 +1,18 @@
-﻿<div align="center">
+<div align="center">
 
 # 🤖 Enterprise RAG System
 
 ### Plataforma Corporativa de Retrieval-Augmented Generation (RAG) & B2B AI Assistant
-*Arquitectura Limpia · Aislamiento Multitenant · Búsqueda Semántica Vectorial · Web API REST en .NET 9*
+*Arquitectura Limpia · Aislamiento Multitenant · Búsqueda Semántica Vectorial · Web API en .NET 9 · SPA en React + TypeScript + Vite*
+
 
 <br/>
 
 [![.NET 9.0](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?style=for-the-badge&logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
+[![React](https://img.shields.io/badge/React-18/19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-Bundler-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-Web%20API-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/apps/aspnet)
 [![Clean Architecture](https://img.shields.io/badge/Clean-Architecture-0078D4?style=for-the-badge&logo=blueprint&logoColor=white)](https://blog.cleancoder.com/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-Code%20First-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://learn.microsoft.com/ef/core/)
@@ -17,6 +21,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![JWT](https://img.shields.io/badge/JWT-Bearer%20Auth-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 [![Swagger](https://img.shields.io/badge/Swagger-OpenAPI%20Docs-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](https://swagger.io/)
+
 
 </div>
 
