@@ -29,7 +29,7 @@
 
 ## 📌 Descripción del Proyecto
 
-**Enterprise RAG System** es una solución de backend corporativo de alto rendimiento diseñada para la ingesta, indexación, vectorización y consulta de documentos empresariales mediante técnicas avanzadas de **Retrieval-Augmented Generation (RAG)** e Inteligencia Artificial.
+**Enterprise RAG System** es una solución corporativa de alto rendimiento diseñada para la ingesta, indexación, vectorización y consulta de documentos empresariales mediante técnicas avanzadas de **Retrieval-Augmented Generation (RAG)** e Inteligencia Artificial.
 
 El sistema permite a múltiples organizaciones (*tenants*) consultar información de sus manuales, contratos, normativas y expedientes internos con respuestas precisas generadas por LLMs, garantizando **cero contaminación de datos entre empresas** y un estricto control de acceso basado en roles (RBAC).
 
