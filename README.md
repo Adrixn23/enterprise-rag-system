@@ -28,7 +28,11 @@
 
 ## 📌 Descripción del Proyecto
 
+<<<<<<< HEAD
 **Enterprise RAG System** es una solución corporativa de alto rendimiento diseñada para la ingesta, indexación, vectorización y consulta de documentos empresariales mediante técnicas avanzadas de **Retrieval-Augmented Generation (RAG)** e Inteligencia Artificial impulsada por **Google Gemini API**.
+=======
+**Enterprise RAG System** es una solución corporativa de alto rendimiento diseñada para la ingesta, indexación, vectorización y consulta de documentos empresariales mediante técnicas avanzadas de **Retrieval-Augmented Generation (RAG)** e Inteligencia Artificial.
+>>>>>>> 5db74906cc60c859070ddc35a148bf905511dd22
 
 El sistema permite a múltiples organizaciones (*tenants*) consultar información de sus manuales, contratos, normativas y expedientes internos con respuestas precisas, contextualizadas y fundamentadas, garantizando **cero contaminación de datos entre empresas** y un estricto control de acceso basado en roles (RBAC).
 
