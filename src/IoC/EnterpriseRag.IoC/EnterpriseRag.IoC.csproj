@@ -10,7 +10,8 @@
     <ProjectReference Include="..\..\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
     <ProjectReference Include="..\..\Infrastructure\EnterpriseRag.Infrastructure.Persistence\EnterpriseRag.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\Infrastructure\EnterpriseRag.Infrastructure.Identity\EnterpriseRag.Infrastructure.Identity.csproj" />
-    <ProjectReference Include="..\..\Infrastructure\EnterpriseRag.Infrastructure.Shared\EnterpriseRag.Infrastructure.Shared.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\EnterpriseRag.Infrastructure.VectorStore\EnterpriseRag.Infrastructure.VectorStore.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\EnterpriseRag.Infrastructure.ExternalServices\EnterpriseRag.Infrastructure.ExternalServices.csproj" />
   </ItemGroup>
 
   <ItemGroup>

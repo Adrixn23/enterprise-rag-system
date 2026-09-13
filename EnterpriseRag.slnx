@@ -9,7 +9,8 @@
   <Folder Name="/src/Infrastructure/">
     <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Persistence/EnterpriseRag.Infrastructure.Persistence.csproj" />
     <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Identity/EnterpriseRag.Infrastructure.Identity.csproj" />
-    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.Shared/EnterpriseRag.Infrastructure.Shared.csproj" />
+    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.VectorStore/EnterpriseRag.Infrastructure.VectorStore.csproj" />
+    <Project Path="src/Infrastructure/EnterpriseRag.Infrastructure.ExternalServices/EnterpriseRag.Infrastructure.ExternalServices.csproj" />
   </Folder>
   <Folder Name="/src/Presentation/">
     <Project Path="src/Presentation/EnterpriseRag.WebApi/EnterpriseRag.WebApi.csproj" />

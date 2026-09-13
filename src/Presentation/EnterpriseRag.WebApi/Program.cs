@@ -11,7 +11,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplicationDependencies();
 builder.Services.AddInfrastructurePersistenceDependencies(builder.Configuration);
 builder.Services.AddInfrastructureIdentityDependencies(builder.Configuration);
-builder.Services.AddInfrastructureSharedDependencies(builder.Configuration);
+builder.Services.AddVectorStoreDependencies(builder.Configuration);
+builder.Services.AddExternalServicesDependencies(builder.Configuration);
+
 
 var app = builder.Build();
 

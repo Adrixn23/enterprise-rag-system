@@ -3,9 +3,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-public static class InfrastructureSharedDependencies
+public static class InfrastructureVectorStoreDependencies
 {
-    public static IServiceCollection AddInfrastructureSharedDependencies(
+    public static IServiceCollection AddVectorStoreDependencies(
         this IServiceCollection services,
         IConfiguration configuration)
     {
