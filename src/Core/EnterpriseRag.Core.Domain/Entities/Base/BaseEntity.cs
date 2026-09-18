@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace EnterpriseRag.Core.Domain.Entities.Base
 {
-    internal class BaseEntity
+    public class BaseEntity
     {
     }
 }
