@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EnterpriseRag.Core.Domain.Common.Errors;
+namespace EnterpriseRag.Core.Domain.Common.Errors.Account;
 
 public static class AccountErrors
 {

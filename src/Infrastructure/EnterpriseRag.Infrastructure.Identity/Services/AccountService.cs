@@ -2,6 +2,7 @@ using EnterpriseRag.Core.Application.Contracts.Account;
 using EnterpriseRag.Core.Application.DTOs.Account;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors;
+using EnterpriseRag.Core.Domain.Common.Errors.Account;
 using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Entities;
