@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
-namespace EnterpriseRag.Core.Application.DTOs.Documents
+namespace EnterpriseRag.Core.Application.DTOs.Documents;
+
+public class UploadDocumentRequestDto
 {
-    internal class UploadDocumentRequestDto
-    {
-    }
+    public required IFormFile File { get; set; }
+    public required string TenantId { get; set; }
 }

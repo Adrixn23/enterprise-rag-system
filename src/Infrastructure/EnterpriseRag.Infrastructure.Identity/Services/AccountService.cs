@@ -1,4 +1,4 @@
-using EnterpriseRag.Core.Application.Contracts;
+using EnterpriseRag.Core.Application.Contracts.Account;
 using EnterpriseRag.Core.Application.DTOs.Account;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors;
