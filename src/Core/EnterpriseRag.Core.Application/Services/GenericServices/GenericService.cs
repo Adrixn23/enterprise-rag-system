@@ -2,8 +2,7 @@ using EnterpriseRag.Core.Application.Contracts.GenericService;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Interfaces.GenericRepository;
 using Mapster;
-using Microsoft.AspNetCore.Http.HttpResults;
-using EnterpriseRag.Core.Domain.Common.Errors.Account;
+
 using EnterpriseRag.Core.Domain.Common.Errors;
 
 namespace EnterpriseRag.Core.Application.Services.GenericServices;
