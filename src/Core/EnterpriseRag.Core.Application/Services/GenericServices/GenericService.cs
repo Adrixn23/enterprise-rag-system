@@ -50,7 +50,7 @@ public class GenericService<TEntity, TResponseDto, TRequestDto, TKey> : IGeneric
 
     public async Task<Result<bool>> DeleteAsync(TKey id, CancellationToken cancellationToken = default)
     {
-        var entity = await _repository.GetByIdAsync(id);
+        var entity = await _repository.GetByIdAsync(id, cancellationToken);
         if (entity == null)
         {
             return Result<bool>.Failure(Error.NotFound);
