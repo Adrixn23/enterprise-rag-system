@@ -93,23 +93,59 @@ public class DocumentService : IDocumentService
         return Result<DocumentResponseDto>.Success(document.Adapt<DocumentResponseDto>());
     }
 
-    public Task<Result<DocumentResponseDto>> GetByIdAsync(Guid id, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Result<DocumentResponseDto>> GetByIdAsync(Guid id, string tenantId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var document = await _documentRepository.GetByIdAsync(id, cancellationToken);
+        if (document == null || document.TenantId != tenantId)
+        {
+            return Result<DocumentResponseDto>.Failure(DocumentErrors.NotFound);
+        }
+
+        return Result<DocumentResponseDto>.Success(document.Adapt<DocumentResponseDto>());
+       
     }
 
-    public Task<Result<IEnumerable<DocumentResponseDto>>> GetByTenantAsync(string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Result<IEnumerable<DocumentResponseDto>>> GetByTenantAsync(string tenantId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+
+        var documents = await _documentRepository.GetByTenantIdAsync(tenantId, cancellationToken);
+        var dtos = documents.Adapt<IEnumerable<DocumentResponseDto>>();
+
+        return Result<IEnumerable<DocumentResponseDto>>.Success(dtos);
     }
 
-    public Task<Result<IEnumerable<DocumentChunkResponseDto>>> GetChunksByDocumentIdAsync(Guid documentId, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Result<IEnumerable<DocumentChunkResponseDto>>> GetChunksByDocumentIdAsync(Guid documentId, string tenantId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var document = await _documentRepository.GetByIdAsync(documentId , cancellationToken);
+        if (document == null || document.TenantId != tenantId)
+        {
+            return Result<IEnumerable<DocumentChunkResponseDto>>.Failure(DocumentErrors.NotFound);
+        }
+
+        var chunks = await _documentChunkRepository.GetByDocumentIdAsync(documentId, cancellationToken);
+
+        var dtos = chunks.Adapt<IEnumerable<DocumentChunkResponseDto>>();
+
+        return Result<IEnumerable<DocumentChunkResponseDto>>.Success(dtos);
+
+        
     }
 
-    public Task<Result<bool>> DeleteDocumentAsync(Guid id, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> DeleteDocumentAsync(Guid id, string tenantId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var document = await _documentRepository.GetByIdAsync(id, cancellationToken);
+
+        if (document == null || document.TenantId != tenantId)
+        {
+            return Result<bool>.Failure(DocumentErrors.NotFound);
+        }
+        await _documentChunkRepository.DeleteByDocumentIdAsync(id, cancellationToken);
+
+        await _fileStorageService.DeleteFileAsync(document.StoragePath, cancellationToken);
+
+        await _documentRepository.DeleteAsync(document, cancellationToken);
+
+        return Result<bool>.Success(true);
+
     }
 }
