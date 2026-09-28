@@ -1,4 +1,3 @@
-
 namespace EnterpriseRag.Core.Domain.Common.Errors.Documents;
 
 public static class DocumentErrors
