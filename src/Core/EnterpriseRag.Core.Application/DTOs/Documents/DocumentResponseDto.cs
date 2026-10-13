@@ -9,7 +9,7 @@ public class DocumentResponseDto
     public required string ContentType { get; set; }
     public long FileSizeBytes { get; set; }
     public required string StoragePath { get; set; }
-    public required string TenantId { get; set; }
+    public Guid TenantId { get; set; }
     public DocumentProcessingStatus Status { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

@@ -28,8 +28,7 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
             .HasMaxLength(1000);
 
         builder.Property(d => d.TenantId)
-            .IsRequired()
-            .HasMaxLength(100);
+            .IsRequired();
 
         builder.Property(d => d.Status)
             .IsRequired()

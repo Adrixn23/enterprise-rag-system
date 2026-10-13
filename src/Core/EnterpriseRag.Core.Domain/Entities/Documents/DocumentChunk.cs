@@ -23,5 +23,5 @@ public class DocumentChunk : BaseEntity
     public required string VectorId { get; set; }
 
     // Identificador del cliente/tenant para filtrado ultrarrapido por empresa sin hacer JOINs
-    public required string TenantId { get; set; }
+    public Guid TenantId { get; set; }
 }
