@@ -13,7 +13,7 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
     {
     }
 
-    public async Task<IEnumerable<Document>> GetByTenantIdAsync(string tenantId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Document>> GetByTenantIdAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .AsNoTracking()

@@ -15,13 +15,16 @@ public class LocalFileStorageService : IFileStorageService
             : Path.Combine(Directory.GetCurrentDirectory(), "Storage", "Uploads");
     }
 
-    public async Task<string> SaveFileAsync(Stream fileStream, string fileName, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<string> SaveFileAsync(Stream fileStream, string fileName, Guid tenantId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(fileStream);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException("TenantId cannot be empty.", nameof(tenantId));
+        }
 
-        var tenantDirectory = Path.Combine(_basePath, tenantId);
+        var tenantDirectory = Path.Combine(_basePath, tenantId.ToString());
         Directory.CreateDirectory(tenantDirectory);
 
         var sanitizedFileName = Path.GetFileName(fileName);

@@ -18,7 +18,7 @@ public class Document : BaseEntity
     public required string StoragePath { get; set; }
 
     // Identificador de la empresa u organizacion a la que pertenece el documento (Multitenancy)
-    public required string TenantId { get; set; }
+    public Guid TenantId { get; set; }
 
     // Estado actual del procesamiento asincrono (Pending, Processing, Completed, Failed)
     public DocumentProcessingStatus Status { get; set; } = DocumentProcessingStatus.Pending;

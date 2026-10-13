@@ -29,8 +29,7 @@ public class DocumentChunkConfiguration : IEntityTypeConfiguration<DocumentChunk
             .HasMaxLength(100);
 
         builder.Property(c => c.TenantId)
-            .IsRequired()
-            .HasMaxLength(100);
+            .IsRequired();
 
         builder.Property(c => c.CreatedAt)
             .IsRequired();

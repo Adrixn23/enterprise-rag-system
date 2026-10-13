@@ -1,10 +1,11 @@
 namespace EnterpriseRag.WebApi.Controllers;
 
-using System.Security.Claims;
 using EnterpriseRag.Core.Application.Contracts.Documents;
 using EnterpriseRag.Core.Application.DTOs.Documents;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces("application/json")]
@@ -22,9 +23,9 @@ public class DocumentsController : ControllerBase
     [RequestSizeLimit(50 * 1024 * 1024)]
     [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Upload(
         [FromForm] IFormFile file,
-        [FromForm] string? tenantId = null,
         CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)
@@ -37,14 +38,15 @@ public class DocumentsController : ControllerBase
             });
         }
 
-        var effectiveTenantId = !string.IsNullOrWhiteSpace(tenantId)
-            ? tenantId
-            : ResolveTenantId();
+        if (!TryResolveTenantId(out var tenantId))
+        {
+            return Unauthorized();
+        }
 
         var request = new UploadDocumentRequestDto
         {
             File = file,
-            TenantId = effectiveTenantId
+            TenantId = tenantId
         };
 
         var result = await _documentService.UploadDocumentAsync(request, cancellationToken);
@@ -66,9 +68,15 @@ public class DocumentsController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken = default)
     {
-        var result = await _documentService.GetByIdAsync(id, ResolveTenantId(), cancellationToken);
+        if (!TryResolveTenantId(out var tenantId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _documentService.GetByIdAsync(id, tenantId, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -86,18 +94,30 @@ public class DocumentsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetByTenant(CancellationToken cancellationToken = default)
     {
-        var result = await _documentService.GetByTenantAsync(ResolveTenantId(), cancellationToken);
+        if (!TryResolveTenantId(out var tenantId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _documentService.GetByTenantAsync(tenantId, cancellationToken);
         return Ok(result.Value);
     }
 
     [HttpGet("{id:guid}/chunks")]
     [ProducesResponseType(typeof(IEnumerable<DocumentChunkResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetChunks(Guid id, CancellationToken cancellationToken = default)
     {
-        var result = await _documentService.GetChunksByDocumentIdAsync(id, ResolveTenantId(), cancellationToken);
+        if (!TryResolveTenantId(out var tenantId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _documentService.GetChunksByDocumentIdAsync(id, tenantId, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -116,9 +136,15 @@ public class DocumentsController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken = default)
     {
-        var result = await _documentService.DeleteDocumentAsync(id, ResolveTenantId(), cancellationToken);
+        if (!TryResolveTenantId(out var tenantId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _documentService.DeleteDocumentAsync(id, tenantId, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -134,11 +160,15 @@ public class DocumentsController : ControllerBase
         return NoContent();
     }
 
-    private string ResolveTenantId()
+    private bool TryResolveTenantId(out Guid tenantId)
     {
-        return User.FindFirst("tenant_id")?.Value
-            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? Request.Headers["X-Tenant-Id"].FirstOrDefault()
-            ?? "default-tenant";
+        var tenantClaim = User.FindFirst("tenantId")?.Value;
+        if (!string.IsNullOrWhiteSpace(tenantClaim) && Guid.TryParse(tenantClaim, out tenantId) && tenantId != Guid.Empty)
+        {
+            return true;
+        }
+
+        tenantId = Guid.Empty;
+        return false;
     }
 }
