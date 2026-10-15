@@ -1,5 +1,5 @@
 using System.Text;
-using EnterpriseRag.Core.Application.Contracts;
+using EnterpriseRag.Core.Application.Contracts.Account;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Context;
 using EnterpriseRag.Infrastructure.Identity.Entities;
