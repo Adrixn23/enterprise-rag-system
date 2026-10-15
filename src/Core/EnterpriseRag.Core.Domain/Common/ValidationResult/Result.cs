@@ -1,4 +1,3 @@
-
 using EnterpriseRag.Core.Domain.Common.Errors;
 
 namespace EnterpriseRag.Core.Domain.Common;

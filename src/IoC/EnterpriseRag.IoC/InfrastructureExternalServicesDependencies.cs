@@ -1,5 +1,9 @@
-﻿namespace EnterpriseRag.IoC;
+namespace EnterpriseRag.IoC;
 
+using EnterpriseRag.Core.Application.Contracts.FileService;
+using EnterpriseRag.Core.Application.Contracts.TextExtraction;
+using EnterpriseRag.Infrastructure.ExternalServices.FileStorage;
+using EnterpriseRag.Infrastructure.ExternalServices.TextExtraction;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,6 +13,9 @@ public static class InfrastructureExternalServicesDependencies
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<ITextExtractorService, TextExtractorService>();
+
         return services;
     }
 }
