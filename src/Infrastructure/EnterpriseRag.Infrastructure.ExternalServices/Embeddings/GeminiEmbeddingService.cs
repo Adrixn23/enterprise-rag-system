@@ -95,12 +95,82 @@ public class GeminiEmbeddingService : IEmbeddingService
         }
     }
 
-    public Task<Result<IReadOnlyList<ReadOnlyMemory<float>>>> GenerateEmbeddingsAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<ReadOnlyMemory<float>>>> GenerateEmbeddingsAsync(
+        IReadOnlyList<string> texts,
+        CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        // 1. Validación de entrada
+        if (texts is null || texts.Count == 0)
+            return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.EmptyList);
+
+        try
+        {
+            // 2. URL del endpoint batch en Gemini
+            var endpoint = $"v1beta/models/{_settings.ModelId}:batchEmbedContents?key={_settings.ApiKey}";
+
+            // 3. Preparación de la lista de peticiones en un solo paquete JSON
+            var batchRequest = new GeminiBatchEmbedRequest
+            {
+                Requests = texts.Select(t => new GeminiEmbedRequest
+                {
+                    Model = $"models/{_settings.ModelId}",
+                    Content = new GeminiContent
+                    {
+                        Parts = [new GeminiPart { Text = t }]
+                    }
+                }).ToList()
+            };
+
+            // 4. Envío HTTP en lote
+            var response = await _httpClient.PostAsJsonAsync(endpoint, batchRequest, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorDetails = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Error en Gemini Batch Embedding API ({StatusCode}): {Details}", response.StatusCode, errorDetails);
+
+                return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(
+                    EmbeddingErrors.ApiError(response.StatusCode.ToString(), errorDetails));
+            }
+
+            // 5. Deserialización de la respuesta
+            var result = await response.Content.ReadFromJsonAsync<GeminiBatchEmbedResponse>(cancellationToken: cancellationToken);
+
+            if (result?.Embeddings is null || result.Embeddings.Count == 0)
+            {
+                _logger.LogWarning("Gemini respondió 200 OK pero la lista de embeddings está vacía.");
+                return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.EmptyResponse);
+            }
+
+            // 6. Conversión de cada float[] a ReadOnlyMemory<float>
+            var vectors = new List<ReadOnlyMemory<float>>(result.Embeddings.Count);
+            foreach (var item in result.Embeddings)
+            {
+                if (item.Values is null || item.Values.Length != _settings.EmbeddingDimension)
+                {
+                    _logger.LogError("Vector en lote incompleto o con dimensión incorrecta.");
+                    return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(
+                        EmbeddingErrors.DimensionMismatch(_settings.EmbeddingDimension, item.Values?.Length ?? 0));
+                }
+
+                vectors.Add(item.Values);
+            }
+
+            return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Success(vectors);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("La operación por lote de embeddings fue cancelada.");
+            return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.OperationCancelled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción inesperada en batch embeddings con Gemini.");
+            return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.Unexpected(ex.Message));
+        }
     }
 
-    // --- Modelos DTO internos para deserializar la respuesta de Google Gemini ---
+    // --- Modelos DTO internos para la API REST de Gemini ---
 
     private sealed class GeminiEmbedRequest
     {
@@ -133,5 +203,17 @@ public class GeminiEmbeddingService : IEmbeddingService
     {
         [JsonPropertyName("values")]
         public float[]? Values { get; set; }
+    }
+
+    private sealed class GeminiBatchEmbedRequest
+    {
+        [JsonPropertyName("requests")]
+        public List<GeminiEmbedRequest> Requests { get; set; } = [];
+    }
+
+    private sealed class GeminiBatchEmbedResponse
+    {
+        [JsonPropertyName("embeddings")]
+        public List<GeminiEmbeddingValues>? Embeddings { get; set; }
     }
 }
