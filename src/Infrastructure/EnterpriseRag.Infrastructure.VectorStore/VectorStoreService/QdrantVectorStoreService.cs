@@ -13,7 +13,6 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static Qdrant.Client.Grpc.Qdrant;
 
 namespace EnterpriseRag.Infrastructure.VectorStore.VectorStoreService
 {
