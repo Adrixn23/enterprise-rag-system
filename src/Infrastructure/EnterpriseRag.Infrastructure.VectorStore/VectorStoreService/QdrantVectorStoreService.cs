@@ -1,83 +1,96 @@
-using EnterpriseRag.Core.Application.Contracts.VectorStore;
+ï»¿using EnterpriseRag.Core.Application.Contracts.VectorStore;
 using EnterpriseRag.Core.Application.DTOs.Vector;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.VectorStore;
-using Google.Protobuf.WellKnownTypes;
+using EnterpriseRag.Core.Domain.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace EnterpriseRag.Infrastructure.VectorStore.VectorStoreService
+namespace EnterpriseRag.Infrastructure.VectorStore.VectorStoreService;
+
+public class QdrantVectorStoreService : IVectorStoreService
 {
-    public class QdrantVectorStoreService : IVectorStoreService
+    private readonly QdrantClient _client;
+    private readonly QdrantSettings _settings;
+    private readonly ILogger<QdrantVectorStoreService> _logger;
+
+    public QdrantVectorStoreService(
+        QdrantClient client,
+        IOptions<QdrantSettings> options,
+        ILogger<QdrantVectorStoreService> logger)
     {
-        private readonly QdrantClient _client;
-        private readonly QdrantSettings _settings;
-        private readonly ILogger<QdrantVectorStoreService> _logger;
+        _client = client;
+        _settings = options.Value;
+        _logger = logger;
+    }
 
-        public QdrantVectorStoreService(QdrantClient client, IOptions<QdrantSettings> options, ILogger<QdrantVectorStoreService> logger) {
-            _client = client;
-            _settings = options.Value;
-            _logger = logger;
+    public async Task<Result> UpsertPointAsync(IEnumerable<VectorPointDto> points, CancellationToken cancellationToken = default)
+    {
+        var pointsList = points?.ToList();
+        if (pointsList is null || pointsList.Count == 0)
+            return Result.Failure(VectorStoreErrors.EmptyPoints);
 
+        try
+        {
+            await EnsureCollectionExistsAsync(cancellationToken);
 
-        }
-
-        public async Task<Result> UpsertPointAsync(IEnumerable<VectorPointDto> points, CancellationToken cancellationToken = default) {
-            var pointsList = points?.ToList();
-            
-            if (pointsList is null || pointsList.Count == 0)
+            var qdrantPoints = pointsList.Select(p => new PointStruct
             {
-                return Result.Failure(VectorStoreErrors.EmptyPoints);
-            }
-            var collectionName = _settings.CollectionName;
+                Id = p.PointId,
+                Vectors = p.Vector.ToArray(),
+                Payload =
+                {
+                    ["tenantId"] = p.TenantId.ToString(),
+                    ["documentId"] = p.DocumentId.ToString(),
+                    ["chunkIndex"] = p.ChunkIndex,
+                    ["content"] = p.Content ?? string.Empty
+                }
+            }).ToList();
 
-            var exists = await _client.CollectionExistsAsync(_settings.CollectionName, cancellationToken);
-            if (!exists)
-            {
-                await _client.CreateCollectionAsync(
-                    collectionName: new VectorParams
-                    {
-                        Size = 768,
-                        Distance = Distance.Cosine
-                    },
+            await _client.UpsertAsync(_settings.CollectionName, qdrantPoints, cancellationToken: cancellationToken);
 
-
-                    cancellationToken: cancellationToken);
-
-                await _client.CreatePayloadIndexAsync(
-                    collectionName: _settings.CollectionName,
-                    fieldName: "tenantId",
-                    SchemaType: PayloadSchemaType.Keyword,
-                    cancellationToken: cancellationToken
-
-
-                    );
-
-                _logger.LogInformation("Colección '{Collection}' creada exitosamente en Qdrant.", _settings.CollectionName);
-            }
+            return Result.Success();
         }
-
-
-
-        public async Task<Result<List<VectorSearchResultDto>>> SearchAsync(ReadOnlyMemory<float> queryVector, Guid tenantId, int limit = 5, CancellationToken cancellationToken = default) {
-
-            throw new NotImplementedException();
-
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al insertar puntos en Qdrant.");
+            return Result.Failure(VectorStoreErrors.UpsertFailed(ex.Message));
         }
+    }
 
-        public async Task<Result> DeleteByDocumentAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default) {
+    private async Task EnsureCollectionExistsAsync(CancellationToken cancellationToken)
+    {
+        var exists = await _client.CollectionExistsAsync(_settings.CollectionName, cancellationToken);
+        if (!exists)
+        {
+            await _client.CreateCollectionAsync(
+                collectionName: _settings.CollectionName,
+                vectorsConfig: new VectorParams
+                {
+                    Size = 768,
+                    Distance = Distance.Cosine
+                },
+                cancellationToken: cancellationToken);
 
-            throw new NotImplementedException();
+            await _client.CreatePayloadIndexAsync(
+                collectionName: _settings.CollectionName,
+                fieldName: "tenantId",
+                schemaType: PayloadSchemaType.Keyword,
+                cancellationToken: cancellationToken);
+
+            _logger.LogInformation("Coleccion {Collection} creada exitosamente en Qdrant.", _settings.CollectionName);
         }
+    }
 
+    public async Task<Result<List<VectorSearchResultDto>>> SearchAsync(ReadOnlyMemory<float> queryVector, Guid tenantId, int limit = 5, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
 
+    public async Task<Result> DeleteByDocumentAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }
