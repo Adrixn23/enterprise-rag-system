@@ -1,6 +1,7 @@
 ﻿using EnterpriseRag.Core.Application.Contracts.VectorStore;
 using EnterpriseRag.Core.Application.DTOs.Vector;
 using EnterpriseRag.Core.Domain.Common;
+using EnterpriseRag.Core.Domain.Common.Errors.Documents;
 using EnterpriseRag.Core.Domain.Common.Errors.VectorStore;
 using EnterpriseRag.Core.Domain.Settings;
 using Microsoft.Extensions.Logging;
@@ -86,11 +87,80 @@ public class QdrantVectorStoreService : IVectorStoreService
 
     public async Task<Result<List<VectorSearchResultDto>>> SearchAsync(ReadOnlyMemory<float> queryVector, Guid tenantId, int limit = 5, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        if (queryVector.IsEmpty)
+        {
+            return Result<List<VectorSearchResultDto>>.Failure(VectorStoreErrors.EmptyQueryVector);
+        }
+
+        if (tenantId == Guid.Empty)
+        {
+            return Result<List<VectorSearchResultDto>>.Failure(VectorStoreErrors.InvalidTenantId);
+        }
+
+        try
+        {
+            var filter = Conditions.MatchKeyword("tenantId", tenantId.ToString());
+
+            var searchResults = await _client.SearchAsync(
+                collectionName: _settings.CollectionName,
+                vector: queryVector.ToArray(),
+                filter: filter,
+                limit: (ulong)limit,
+                cancellationToken: cancellationToken);
+
+            var dtoList = searchResults.Select(point => new VectorSearchResultDto
+            {
+                PointId = Guid.Parse(point.Id.Uuid),
+                DocumentId = Guid.Parse(point.Payload["documentId"].StringValue),
+                ChunkIndex = (int)point.Payload["chunkIndex"].IntegerValue,
+                Content = point.Payload.TryGetValue("content", out var contentVal) ? contentVal.StringValue : string.Empty,
+                Score = point.Score
+            }).ToList();
+
+            return Result<List<VectorSearchResultDto>>.Success(dtoList);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al realizar la busqueda vectorial en Qdrant para TenantId: {TenantId}", tenantId);
+            return Result<List<VectorSearchResultDto>>.Failure(VectorStoreErrors.SearchFailed(ex.Message));
+        }
     }
 
     public async Task<Result> DeleteByDocumentAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        if (documentId == Guid.Empty)
+        {
+            return Result.Failure(DocumentErrors.NotFound);
+        }
+
+        if (tenantId == Guid.Empty)
+        {
+            return Result.Failure(VectorStoreErrors.InvalidTenantId);
+        }
+
+        try
+        {
+            var filter = new Filter
+            {
+                Must =
+                {
+                    Conditions.MatchKeyword("tenantId", tenantId.ToString()),
+                    Conditions.MatchKeyword("documentId", documentId.ToString())
+                }
+            };
+
+            await _client.DeleteAsync(
+                collectionName: _settings.CollectionName,
+                filter: filter,
+                cancellationToken: cancellationToken);
+
+            _logger.LogInformation("Vectores eliminados en Qdrant para DocumentId: {DocumentId}, TenantId: {TenantId}", documentId, tenantId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al eliminar vectores en Qdrant para DocumentId: {DocumentId}, TenantId: {TenantId}", documentId, tenantId);
+            return Result.Failure(VectorStoreErrors.DeleteFailed(ex.Message));
+        }
     }
 }

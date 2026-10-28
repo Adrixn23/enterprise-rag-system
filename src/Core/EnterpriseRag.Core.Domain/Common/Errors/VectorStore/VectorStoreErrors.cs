@@ -21,4 +21,10 @@ public static class VectorStoreErrors
 
     public static Error CollectionCreationFailed(string collectionName, string details) =>
         new("VectorStore.CollectionCreationFailed", $"No se pudo crear o asegurar la colección '{collectionName}': {details}");
+
+    public static Error EmptyQueryVector =>
+         new("VectorStore.EmptyQueryVector", "El vector de consulta proporcionado está vacío.");
+
+    public static Error InvalidTenantId =>
+        new("VectorStore.InvalidTenantId", "El identificador del tenant proporcionado no es válido.");
 }
