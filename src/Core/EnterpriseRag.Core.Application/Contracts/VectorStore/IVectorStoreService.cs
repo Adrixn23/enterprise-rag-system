@@ -1,29 +1,20 @@
 ﻿using EnterpriseRag.Core.Application.DTOs.Vector;
 using EnterpriseRag.Core.Domain.Common;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace EnterpriseRag.Core.Application.Contracts.VectorStore
+namespace EnterpriseRag.Core.Application.Contracts.VectorStore;
+
+public interface IVectorStoreService
 {
-    public interface IVectorStoreService
-    {
-        // este contrato se encarga de gyuardar en qdrant
-        Task<Result> UpsertPointAsync(IEnumerable<VectorPointDto> points, CancellationToken cancellationToken = default);
+    // Almacena puntos vectoriales en Qdrant
+    Task<Result> UpsertPointAsync(IEnumerable<VectorPointDto> points, CancellationToken cancellationToken = default);
 
-        // Buscar los textos más cercanos en Qdrant
+    // Busca los textos mas cercanos semanticamente en Qdrant filtrado por tenant
+    Task<Result<List<VectorSearchResultDto>>> SearchAsync(
+        ReadOnlyMemory<float> queryVector,
+        Guid tenantId,
+        int limit = 5,
+        CancellationToken cancellationToken = default);
 
-        Task<Result<List<VectorSearchResultDto>>> SearchAsync(
-            ReadOnlyMemory<float> QueryVector,
-            Guid TenantId,
-            int limit = 5,
-            CancellationToken cancellationToken = default
-            );
-
-        Task<Result> DeleteByDocumentAsync(Guid documentId, Guid TenantId, CancellationToken cancellationToken = default);
-
-    }
+    // Elimina todos los vectores asociados a un documento de un tenant
+    Task<Result> DeleteByDocumentAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default);
 }

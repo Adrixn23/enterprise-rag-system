@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using EnterpriseRag.Core.Application.Contracts.Embeddings;
 using EnterpriseRag.Core.Domain.Common;
@@ -27,16 +27,16 @@ public class GeminiEmbeddingService : IEmbeddingService
 
     public async Task<Result<ReadOnlyMemory<float>>> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        // 1. Validación de entrada (Filtro defensivo)
+        // 1. Validacion de entrada (Filtro defensivo)
         if (string.IsNullOrWhiteSpace(text))
             return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.EmptyText);
 
         try
         {
-            // 2. Construcción de la URL de Gemini
+            // 2. Construccion de la URL de Gemini
             var endpoint = $"v1beta/models/{_settings.ModelId}:embedContent?key={_settings.ApiKey}";
 
-            // 3. Preparación del cuerpo JSON según la especificación de Gemini
+            // 3. Preparacion del cuerpo JSON segun la especificacion de Gemini
             var requestBody = new GeminiEmbedRequest
             {
                 Model = $"models/{_settings.ModelId}",
@@ -46,10 +46,10 @@ public class GeminiEmbeddingService : IEmbeddingService
                 }
             };
 
-            // 4. Envío de la petición HTTP POST
+            // 4. Envio de la peticion HTTP POST
             var response = await _httpClient.PostAsJsonAsync(endpoint, requestBody, cancellationToken);
 
-            // 5. Manejo de errores HTTP (ej: 400 Bad Request, 403 Invalid API Key, 429 Quota Exceeded)
+            // 5. Manejo de errores HTTP (400 Bad Request, 403 Invalid API Key, 429 Quota Exceeded)
             if (!response.IsSuccessStatusCode)
             {
                 var errorDetails = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -59,38 +59,38 @@ public class GeminiEmbeddingService : IEmbeddingService
                     EmbeddingErrors.ApiError(response.StatusCode.ToString(), errorDetails));
             }
 
-            // 6. Deserialización de la respuesta JSON a nuestro DTO interno
+            // 6. Deserializacion de la respuesta JSON a nuestro DTO interno
             var result = await response.Content.ReadFromJsonAsync<GeminiEmbedResponse>(cancellationToken: cancellationToken);
 
-            // 7. Validación del contenido recibido (por si Google responde 200 pero sin vector)
+            // 7. Validacion del contenido recibido (por si Google responde 200 pero sin vector)
             if (result?.Embedding?.Values is null || result.Embedding.Values.Length == 0)
             {
-                _logger.LogWarning("Gemini respondió 200 OK pero sin valores de embedding.");
+                _logger.LogWarning("Gemini respondio 200 OK pero sin valores de embedding.");
                 return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.EmptyResponse);
             }
 
-            // 8. Validación de dimensiones esperadas (text-embedding-004 debe ser 768)
+            // 8. Validacion de dimensiones esperadas (text-embedding-004 debe ser 768)
             if (result.Embedding.Values.Length != _settings.EmbeddingDimension)
             {
-                _logger.LogError("Dimensión inesperada en el vector. Esperado: {Expected}, Recibido: {Actual}",
+                _logger.LogError("Dimension inesperada en el vector. Esperado: {Expected}, Recibido: {Actual}",
                     _settings.EmbeddingDimension, result.Embedding.Values.Length);
 
                 return Result<ReadOnlyMemory<float>>.Failure(
                     EmbeddingErrors.DimensionMismatch(_settings.EmbeddingDimension, result.Embedding.Values.Length));
             }
 
-            // 9. Éxito: conversión implícita de float[] a ReadOnlyMemory<float>
+            // 9. Exito: conversion implicita de float[] a ReadOnlyMemory<float> (zero allocation)
             ReadOnlyMemory<float> vector = result.Embedding.Values;
             return Result<ReadOnlyMemory<float>>.Success(vector);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("La operación para generar embedding fue cancelada.");
+            _logger.LogWarning("La operacion para generar embedding fue cancelada.");
             return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.OperationCancelled);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Excepción inesperada al comunicarse con la API de Gemini.");
+            _logger.LogError(ex, "Excepcion inesperada al comunicarse con la API de Gemini.");
             return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.Unexpected(ex.Message));
         }
     }
@@ -99,7 +99,7 @@ public class GeminiEmbeddingService : IEmbeddingService
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default)
     {
-        // 1. Validación de entrada
+        // 1. Validacion de entrada
         if (texts is null || texts.Count == 0)
             return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.EmptyList);
 
@@ -108,7 +108,7 @@ public class GeminiEmbeddingService : IEmbeddingService
             // 2. URL del endpoint batch en Gemini
             var endpoint = $"v1beta/models/{_settings.ModelId}:batchEmbedContents?key={_settings.ApiKey}";
 
-            // 3. Preparación de la lista de peticiones en un solo paquete JSON
+            // 3. Preparacion de la lista de peticiones en un solo paquete JSON
             var batchRequest = new GeminiBatchEmbedRequest
             {
                 Requests = texts.Select(t => new GeminiEmbedRequest
@@ -121,7 +121,7 @@ public class GeminiEmbeddingService : IEmbeddingService
                 }).ToList()
             };
 
-            // 4. Envío HTTP en lote
+            // 4. Envio HTTP en lote (una sola conexion para todos los chunks)
             var response = await _httpClient.PostAsJsonAsync(endpoint, batchRequest, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -133,22 +133,22 @@ public class GeminiEmbeddingService : IEmbeddingService
                     EmbeddingErrors.ApiError(response.StatusCode.ToString(), errorDetails));
             }
 
-            // 5. Deserialización de la respuesta
+            // 5. Deserializacion de la respuesta
             var result = await response.Content.ReadFromJsonAsync<GeminiBatchEmbedResponse>(cancellationToken: cancellationToken);
 
             if (result?.Embeddings is null || result.Embeddings.Count == 0)
             {
-                _logger.LogWarning("Gemini respondió 200 OK pero la lista de embeddings está vacía.");
+                _logger.LogWarning("Gemini respondio 200 OK pero la lista de embeddings esta vacia.");
                 return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.EmptyResponse);
             }
 
-            // 6. Conversión de cada float[] a ReadOnlyMemory<float>
+            // 6. Conversion de cada float[] a ReadOnlyMemory<float> con validacion de dimensiones
             var vectors = new List<ReadOnlyMemory<float>>(result.Embeddings.Count);
             foreach (var item in result.Embeddings)
             {
                 if (item.Values is null || item.Values.Length != _settings.EmbeddingDimension)
                 {
-                    _logger.LogError("Vector en lote incompleto o con dimensión incorrecta.");
+                    _logger.LogError("Vector en lote incompleto o con dimension incorrecta.");
                     return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(
                         EmbeddingErrors.DimensionMismatch(_settings.EmbeddingDimension, item.Values?.Length ?? 0));
                 }
@@ -160,12 +160,12 @@ public class GeminiEmbeddingService : IEmbeddingService
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("La operación por lote de embeddings fue cancelada.");
+            _logger.LogWarning("La operacion por lote de embeddings fue cancelada.");
             return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.OperationCancelled);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Excepción inesperada en batch embeddings con Gemini.");
+            _logger.LogError(ex, "Excepcion inesperada en batch embeddings con Gemini.");
             return Result<IReadOnlyList<ReadOnlyMemory<float>>>.Failure(EmbeddingErrors.Unexpected(ex.Message));
         }
     }
