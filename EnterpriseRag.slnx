@@ -2,6 +2,7 @@
   <Folder Name="/src/IoC/">
     <Project Path="src/IoC/EnterpriseRag.IoC/EnterpriseRag.IoC.csproj" />
   </Folder>
+  <Folder Name="/src/" />
   <Folder Name="/src/Core/">
     <Project Path="src/Core/EnterpriseRag.Core.Domain/EnterpriseRag.Core.Domain.csproj" />
     <Project Path="src/Core/EnterpriseRag.Core.Application/EnterpriseRag.Core.Application.csproj" />
@@ -14,5 +15,8 @@
   </Folder>
   <Folder Name="/src/Presentation/">
     <Project Path="src/Presentation/EnterpriseRag.WebApi/EnterpriseRag.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EnterpriseRag.UnitTests/EnterpriseRag.UnitTests.csproj" />
   </Folder>
 </Solution>
