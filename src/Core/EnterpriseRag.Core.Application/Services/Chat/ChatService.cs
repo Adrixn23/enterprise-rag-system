@@ -48,24 +48,41 @@ public class ChatService : IChatService
             return Result<ChatResponseDto>.Failure(ChatErrors.MessageTooLong(2000));
         }
 
-        // 2. Retrieval: Buscar los fragmentos mas relevantes en la base vectorial para este tenant
+        // 2. Retrieval: Buscar los fragmentos más relevantes en la base vectorial para este tenant
         var searchRequest = new SearchQueryRequestDto
         {
             Query = trimmedMessage,
             Limit = Math.Clamp(request.MaxContextChunks, 1, 10),
-            MinScore = 0.4f // Umbral de similitud para asegurar contexto relevante
+            MinScore = 0.4f
         };
 
         var searchResult = await _searchService.SearchAsync(searchRequest, tenantId, cancellationToken);
-        var relevantChunks = (searchResult.IsSuccess && searchResult.Value is not null)
-            ? searchResult.Value
-            : [];
+        
+        // Blindaje contra fallo de infraestructura: si Qdrant o Embeddings fallaron, propagar el error y abortar
+        if (searchResult.IsFailure)
+        {
+            _logger.LogError("Fallo en la recuperacion vectorial de documentos para TenantId: {TenantId}", tenantId);
+            return Result<ChatResponseDto>.Failure(searchResult.Errors.ToArray());
+        }
+
+        var relevantChunks = searchResult.Value ?? [];
+
+        // Blindaje contra alucinaciones y ahorro de costos: si no hay documentos relevantes, responder directamente
+        if (relevantChunks.Count == 0)
+        {
+            _logger.LogInformation("Consulta para TenantId {TenantId} no encontro documentos relevantes sobre el umbral.", tenantId);
+            return Result<ChatResponseDto>.Success(new ChatResponseDto
+            {
+                Answer = "No encuentro información suficiente en los documentos de la empresa para responder a tu pregunta.",
+                Sources = []
+            });
+        }
 
         // 3. Prompt Engineering: Construir System Instruction y Contexto Aumentado
         var systemInstruction = BuildSystemPrompt();
         var userPrompt = BuildUserPromptWithContext(trimmedMessage, relevantChunks);
 
-        // 4. Generation: Sintesis de respuesta con Gemini LLM
+        // 4. Generation: Síntesis de respuesta con Gemini LLM
         var generationResult = await _generativeAiService.GenerateResponseAsync(
             systemInstruction,
             userPrompt,
@@ -77,7 +94,7 @@ public class ChatService : IChatService
             return Result<ChatResponseDto>.Failure(generationResult.Errors.ToArray());
         }
 
-        // 5. Retornar respuesta enriquecida con fuentes citables para auditoria
+        // 5. Retornar respuesta enriquecida con fuentes citables para auditoría
         var response = new ChatResponseDto
         {
             Answer = generationResult.Value,
@@ -111,17 +128,6 @@ public class ChatService : IChatService
 
     private static string BuildUserPromptWithContext(string userQuestion, List<SearchResultDto> chunks)
     {
-        if (chunks.Count == 0)
-        {
-            return $"""
-                [CONTEXTO DE DOCUMENTOS]
-                No se encontraron documentos relacionados en la base de conocimientos.
-
-                [PREGUNTA DEL USUARIO]
-                {userQuestion}
-                """;
-        }
-
         var sb = new StringBuilder();
         sb.AppendLine("[CONTEXTO DE DOCUMENTOS DE LA EMPRESA]");
         sb.AppendLine("Usa los siguientes fragmentos para responder a la pregunta:");

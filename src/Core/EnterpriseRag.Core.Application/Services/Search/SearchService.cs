@@ -93,18 +93,9 @@ public class SearchService : ISearchService
             return Result<List<SearchResultDto>>.Success([]);
         }
 
-        // 5. Enriquecer los resultados con el nombre del documento original desde SQL
+        // 5. Enriquecer los resultados en lote (Batch Query - Cero consultas N+1)
         var documentIds = filteredPoints.Select(p => p.DocumentId).Distinct().ToList();
-        var documentNames = new Dictionary<Guid, string>();
-
-        foreach (var docId in documentIds)
-        {
-            var doc = await _documentRepository.GetByIdAsync(docId, cancellationToken);
-            if (doc != null)
-            {
-                documentNames[docId] = doc.FileName;
-            }
-        }
+        var documentNames = await _documentRepository.GetFileNamesByIdsAsync(documentIds, tenantId, cancellationToken);
 
         var results = filteredPoints.Select(p => new SearchResultDto
         {

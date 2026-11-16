@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace EnterpriseRag.Core.Application.Contracts.TextExtraction;
 
-namespace EnterpriseRag.Core.Application.Contracts.TextExtraction
+public interface ITextExtractorService
 {
-    public interface ITextExtractorService
-    {
-        Task<string> ExtractTextAsync(Stream fileStream, string contentType, CancellationToken cancellationToken = default);
-        bool CanExtract(string contentType);
-    }
+    Task<string> ExtractTextAsync(Stream fileStream, string contentType, CancellationToken cancellationToken = default);
+    bool CanExtract(string contentType);
+    bool IsValidFileContent(Stream fileStream, string contentType);
 }
