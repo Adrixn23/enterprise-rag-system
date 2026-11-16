@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Account;
 using EnterpriseRag.Core.Application.DTOs.Account;
 using EnterpriseRag.Core.Domain.Common;
@@ -9,11 +12,6 @@ using EnterpriseRag.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-
-
 
 namespace EnterpriseRag.Infrastructure.Identity.Services;
 
@@ -40,15 +38,14 @@ public class AccountService : IAccountService
         {
             return Result<string>.Failure(AccountErrors.EmailAlreadyExists);
         }
+
         var user = new ApplicationUser
         {
-
             UserName = request.Email,
             Email = request.Email,
             FullName = request.FullName,
             TenantId = request.TenantId,
             EmailConfirmed = true
-
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
@@ -61,7 +58,6 @@ public class AccountService : IAccountService
 
         await _userManager.AddToRoleAsync(user, Roles.Operador.ToString());
 
-
         return Result<string>.Success(user.Id.ToString());
     }
 
@@ -73,7 +69,13 @@ public class AccountService : IAccountService
             return Result<AuthenticationResponseDto>.Failure(AccountErrors.InvalidCredentials);
         }
 
-        var checkPassword = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
+        // Bloqueo habilitado contra ataques de fuerza bruta (lockoutOnFailure: true)
+        var checkPassword = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+
+        if (checkPassword.IsLockedOut)
+        {
+            return Result<AuthenticationResponseDto>.Failure(AccountErrors.AccountLocked);
+        }
 
         if (!checkPassword.Succeeded)
         {
@@ -81,7 +83,6 @@ public class AccountService : IAccountService
         }
 
         var userRoles = await _userManager.GetRolesAsync(user);
-
         var token = GenerateJwtToken(user, userRoles);
 
         var response = new AuthenticationResponseDto
@@ -101,7 +102,6 @@ public class AccountService : IAccountService
     {
         var claims = new List<Claim>
         {
-
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -132,4 +132,3 @@ public class AccountService : IAccountService
         return tokenHandler.WriteToken(token);
     }
 }
-
