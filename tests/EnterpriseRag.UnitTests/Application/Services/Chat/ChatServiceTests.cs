@@ -5,6 +5,7 @@ using EnterpriseRag.Core.Application.DTOs.Search;
 using EnterpriseRag.Core.Application.Services.Chat;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.Chat;
+using EnterpriseRag.Core.Domain.Common.Errors.Search;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -41,6 +42,48 @@ public class ChatServiceTests
 
         result.IsFailure.Should().BeTrue();
         result.Errors.Should().Contain(ChatErrors.EmptyMessage);
+
+        _generativeAiServiceMock.Verify(
+            x => x.GenerateResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task AskAsync_WhenRetrievalFails_ShouldPropagateFailure_AndNeverCallGemini()
+    {
+        var request = new ChatRequestDto { Message = "¿Cuál es la política de seguridad?" };
+        var tenantId = Guid.NewGuid();
+
+        _searchServiceMock
+            .Setup(x => x.SearchAsync(It.IsAny<SearchQueryRequestDto>(), tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<List<SearchResultDto>>.Failure(SearchErrors.NoResultsFound));
+
+        var result = await _sut.AskAsync(request, tenantId);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(SearchErrors.NoResultsFound);
+
+        _generativeAiServiceMock.Verify(
+            x => x.GenerateResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task AskAsync_WhenNoChunksFound_ShouldReturnDirectAnswer_AndNeverCallGemini()
+    {
+        var request = new ChatRequestDto { Message = "¿Cómo hacer una pizza?" };
+        var tenantId = Guid.NewGuid();
+
+        _searchServiceMock
+            .Setup(x => x.SearchAsync(It.IsAny<SearchQueryRequestDto>(), tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<List<SearchResultDto>>.Success([]));
+
+        var result = await _sut.AskAsync(request, tenantId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Answer.Should().Contain("No encuentro información suficiente en los documentos");
+        result.Value.Sources.Should().BeEmpty();
 
         _generativeAiServiceMock.Verify(
             x => x.GenerateResponseAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),

@@ -5,7 +5,6 @@ using EnterpriseRag.Core.Application.DTOs.Vector;
 using EnterpriseRag.Core.Application.Services.Search;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.Search;
-using EnterpriseRag.Core.Domain.Entities.Documents;
 using EnterpriseRag.Core.Domain.Interfaces.Documents;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -66,10 +65,12 @@ public class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_WhenResultsFound_ShouldFilterByMinScore_AndEnrichWithDocumentName()
+    public async Task SearchAsync_WhenResultsFound_ShouldFilterByMinScore_AndPerformSingleBatchQueryForNames()
     {
         var tenantId = Guid.NewGuid();
-        var documentId = Guid.NewGuid();
+        var documentId1 = Guid.NewGuid();
+        var documentId2 = Guid.NewGuid();
+
         var request = new SearchQueryRequestDto
         {
             Query = "politica de seguridad",
@@ -87,7 +88,7 @@ public class SearchServiceTests
             new()
             {
                 PointId = Guid.NewGuid(),
-                DocumentId = documentId,
+                DocumentId = documentId1,
                 ChunkIndex = 1,
                 Content = "Texto relevante sobre seguridad.",
                 Score = 0.85f
@@ -95,7 +96,7 @@ public class SearchServiceTests
             new()
             {
                 PointId = Guid.NewGuid(),
-                DocumentId = documentId,
+                DocumentId = documentId2,
                 ChunkIndex = 2,
                 Content = "Texto con baja relevancia.",
                 Score = 0.50f
@@ -106,18 +107,17 @@ public class SearchServiceTests
             .Setup(x => x.SearchAsync(fakeEmbedding, tenantId, request.Limit, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<List<VectorSearchResultDto>>.Success(qdrantResults));
 
-        var fakeDocument = new Document
+        var batchFileNames = new Dictionary<Guid, string>
         {
-            Id = documentId,
-            FileName = "Seguridad_2026.pdf",
-            ContentType = "application/pdf",
-            StoragePath = "docs/seguridad.pdf",
-            TenantId = tenantId
+            { documentId1, "Seguridad_2026.pdf" }
         };
 
         _documentRepositoryMock
-            .Setup(x => x.GetByIdAsync(documentId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(fakeDocument);
+            .Setup(x => x.GetFileNamesByIdsAsync(
+                It.Is<IEnumerable<Guid>>(ids => ids.Contains(documentId1) && !ids.Contains(documentId2)),
+                tenantId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(batchFileNames);
 
         var result = await _sut.SearchAsync(request, tenantId);
 
@@ -125,6 +125,15 @@ public class SearchServiceTests
         result.Value.Should().HaveCount(1);
         result.Value![0].Score.Should().Be(0.85f);
         result.Value[0].DocumentFileName.Should().Be("Seguridad_2026.pdf");
-        result.Value[0].Content.Should().Be("Texto relevante sobre seguridad.");
+
+        // Verificamos que se ejecutó una sola llamada en lote (Cero consultas N+1)
+        _documentRepositoryMock.Verify(
+            x => x.GetFileNamesByIdsAsync(It.IsAny<IEnumerable<Guid>>(), tenantId, It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        // Verificamos que NUNCA se usó la llamada individual GetByIdAsync
+        _documentRepositoryMock.Verify(
+            x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

@@ -6,6 +6,9 @@ using UglyToad.PdfPig;
 
 public class TextExtractorService : ITextExtractorService
 {
+    private static readonly byte[] PdfMagicBytes = "%PDF-"u8.ToArray(); // 0x25, 0x50, 0x44, 0x46, 0x2D
+    private static readonly byte[] ExeMagicBytes = "MZ"u8.ToArray();   // 0x4D, 0x5A (Windows DOS MZ header)
+
     private static readonly HashSet<string> SupportedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "application/pdf",
@@ -27,6 +30,61 @@ public class TextExtractorService : ITextExtractorService
 
         var normalized = contentType.Split(';')[0].Trim();
         return SupportedContentTypes.Contains(normalized);
+    }
+
+    public bool IsValidFileContent(Stream fileStream, string contentType)
+    {
+        if (fileStream == null || fileStream.Length == 0 || !CanExtract(contentType))
+        {
+            return false;
+        }
+
+        if (!fileStream.CanSeek)
+        {
+            return true; // Si el stream no permite seek, delegamos al parser
+        }
+
+        var initialPosition = fileStream.Position;
+        try
+        {
+            fileStream.Position = 0;
+            Span<byte> header = stackalloc byte[16];
+            int bytesRead = fileStream.Read(header);
+
+            if (bytesRead < 4)
+            {
+                return false;
+            }
+
+            var normalized = contentType.Split(';')[0].Trim();
+
+            // Bloquear ejecutables disfrazados
+            if (header[0] == ExeMagicBytes[0] && header[1] == ExeMagicBytes[1])
+            {
+                return false;
+            }
+
+            // Validar firma PDF
+            if (normalized.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return header.Slice(0, Math.Min(bytesRead, 5)).SequenceEqual(PdfMagicBytes);
+            }
+
+            // Validar archivos de texto plano: no deben contener bytes nulos binarios
+            for (int i = 0; i < bytesRead; i++)
+            {
+                if (header[i] == 0x00)
+                {
+                    return false; // Archivo binario disfrazado de texto
+                }
+            }
+
+            return true;
+        }
+        finally
+        {
+            fileStream.Position = initialPosition;
+        }
     }
 
     public async Task<string> ExtractTextAsync(Stream fileStream, string contentType, CancellationToken cancellationToken = default)

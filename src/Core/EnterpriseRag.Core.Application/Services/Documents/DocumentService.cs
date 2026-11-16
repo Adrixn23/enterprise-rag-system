@@ -12,6 +12,7 @@ using EnterpriseRag.Core.Domain.Entities.Documents;
 using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Interfaces.Documents;
 using Mapster;
+using Microsoft.Extensions.Logging;
 
 namespace EnterpriseRag.Core.Application.Services.Documents;
 
@@ -24,6 +25,7 @@ public class DocumentService : IDocumentService
     private readonly ITextChunkerService _textChunkerService;
     private readonly IEmbeddingService _embeddingService;
     private readonly IVectorStoreService _vectorStoreService;
+    private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
         IDocumentRepository documentRepository,
@@ -32,7 +34,8 @@ public class DocumentService : IDocumentService
         ITextExtractorService textExtractorService,
         ITextChunkerService textChunkerService,
         IEmbeddingService embeddingService,
-        IVectorStoreService vectorStoreService)
+        IVectorStoreService vectorStoreService,
+        ILogger<DocumentService> logger)
     {
         _documentRepository = documentRepository;
         _documentChunkRepository = documentChunkRepository;
@@ -41,6 +44,7 @@ public class DocumentService : IDocumentService
         _textChunkerService = textChunkerService;
         _embeddingService = embeddingService;
         _vectorStoreService = vectorStoreService;
+        _logger = logger;
     }
 
     public async Task<Result<DocumentResponseDto>> UploadDocumentAsync(UploadDocumentRequestDto request, CancellationToken cancellationToken = default)
@@ -56,78 +60,115 @@ public class DocumentService : IDocumentService
             return Result<DocumentResponseDto>.Failure(DocumentErrors.UnsupportedFormat);
         }
 
-        // 2. Almacenamiento fisico del archivo usando un Stream independiente
+        // Validacion defensiva profunda (Magic Bytes): verificar que el contenido real coincida con el tipo declarado
+        using (var validationStream = request.File.OpenReadStream())
+        {
+            if (!_textExtractorService.IsValidFileContent(validationStream, request.File.ContentType))
+            {
+                _logger.LogWarning("Archivo rechazado: La firma binaria (Magic Bytes) de '{FileName}' no coincide con el Content-Type declarado '{ContentType}'.",
+                    request.File.FileName, request.File.ContentType);
+                return Result<DocumentResponseDto>.Failure(DocumentErrors.UnsupportedFormat);
+            }
+        }
+
+        // 2. Almacenamiento fisico inicial del archivo
         using var storageStream = request.File.OpenReadStream();
         var storagePath = await _fileStorageService.SaveFileAsync(storageStream, request.File.FileName, request.TenantId, cancellationToken);
 
-        // 3. Extraccion de texto plano usando un segundo Stream independiente sin problemas de seek
-        using var extractionStream = request.File.OpenReadStream();
-        var textContent = await _textExtractorService.ExtractTextAsync(extractionStream, request.File.ContentType, cancellationToken);
-        var rawChunks = _textChunkerService.ChunkText(textContent);
-
-        // 4. Generacion de embeddings con Gemini en lote (Batch)
-        var embeddingResult = await _embeddingService.GenerateEmbeddingsAsync(rawChunks, cancellationToken);
-        if (embeddingResult.IsFailure)
+        try
         {
-            return Result<DocumentResponseDto>.Failure(embeddingResult.Errors.ToArray());
-        }
+            // 3. Extraccion de texto plano usando un segundo Stream independiente sin problemas de seek
+            using var extractionStream = request.File.OpenReadStream();
+            var textContent = await _textExtractorService.ExtractTextAsync(extractionStream, request.File.ContentType, cancellationToken);
+            var rawChunks = _textChunkerService.ChunkText(textContent);
 
-        var vectors = embeddingResult.Value!;
-
-        // 5. Construccion de la entidad Document principal
-        var document = new Document
-        {
-            FileName = request.File.FileName,
-            ContentType = request.File.ContentType,
-            FileSizeBytes = request.File.Length,
-            StoragePath = storagePath,
-            TenantId = request.TenantId,
-            Status = DocumentProcessingStatus.Completed
-        };
-
-        // 6. Generacion de Chunks para SQL y VectorPoints para Qdrant
-        var chunks = new List<DocumentChunk>();
-        var vectorPoints = new List<VectorPointDto>();
-
-        for (int i = 0; i < rawChunks.Count; i++)
-        {
-            var pointId = Guid.NewGuid();
-
-            chunks.Add(new DocumentChunk
+            // 4. Generacion de embeddings con Gemini en lote (Batch)
+            var embeddingResult = await _embeddingService.GenerateEmbeddingsAsync(rawChunks, cancellationToken);
+            if (embeddingResult.IsFailure)
             {
-                DocumentId = document.Id,
-                ChunkIndex = i,
-                Content = rawChunks[i],
-                TokenCount = rawChunks[i].Length / 4,
-                VectorId = pointId.ToString(),
-                TenantId = request.TenantId
-            });
+                // Compensacion: si falla la generacion de embeddings, limpiar el archivo fisico recien guardado
+                await _fileStorageService.DeleteFileAsync(storagePath, cancellationToken);
+                return Result<DocumentResponseDto>.Failure(embeddingResult.Errors.ToArray());
+            }
 
-            vectorPoints.Add(new VectorPointDto
+            var vectors = embeddingResult.Value!;
+
+            // 5. Construccion de la entidad Document principal
+            var document = new Document
             {
-                PointId = pointId,
-                Vector = vectors[i],
+                FileName = request.File.FileName,
+                ContentType = request.File.ContentType,
+                FileSizeBytes = request.File.Length,
+                StoragePath = storagePath,
                 TenantId = request.TenantId,
-                DocumentId = document.Id,
-                ChunkIndex = i,
-                Content = rawChunks[i]
-            });
+                Status = DocumentProcessingStatus.Completed
+            };
+
+            // 6. Generacion de Chunks para SQL y VectorPoints para Qdrant
+            var chunks = new List<DocumentChunk>();
+            var vectorPoints = new List<VectorPointDto>();
+
+            for (int i = 0; i < rawChunks.Count; i++)
+            {
+                var pointId = Guid.NewGuid();
+
+                chunks.Add(new DocumentChunk
+                {
+                    DocumentId = document.Id,
+                    ChunkIndex = i,
+                    Content = rawChunks[i],
+                    TokenCount = rawChunks[i].Length / 4,
+                    VectorId = pointId.ToString(),
+                    TenantId = request.TenantId
+                });
+
+                vectorPoints.Add(new VectorPointDto
+                {
+                    PointId = pointId,
+                    Vector = vectors[i],
+                    TenantId = request.TenantId,
+                    DocumentId = document.Id,
+                    ChunkIndex = i,
+                    Content = rawChunks[i]
+                });
+            }
+
+            document.Chunks = chunks;
+
+            // 7. Almacenar puntos vectoriales en Qdrant
+            var vectorStoreResult = await _vectorStoreService.UpsertPointAsync(vectorPoints, cancellationToken);
+            if (vectorStoreResult.IsFailure)
+            {
+                // Compensacion: si falla Qdrant, limpiar el archivo fisico en disco
+                await _fileStorageService.DeleteFileAsync(storagePath, cancellationToken);
+                return Result<DocumentResponseDto>.Failure(vectorStoreResult.Errors.ToArray());
+            }
+
+            // 8. Persistencia atomica en SQL Server con compensacion en caso de excepcion
+            try
+            {
+                await _documentRepository.AddAsync(document, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fallo critico al persistir Documento en SQL Server tras haber guardado en Qdrant. Iniciando compensacion (Rollback).");
+
+                // Compensacion distribuida (Saga): Borrar vectores en Qdrant y archivo fisico para no dejar huerfanos
+                await _vectorStoreService.DeleteByDocumentAsync(document.Id, request.TenantId, cancellationToken);
+                await _fileStorageService.DeleteFileAsync(storagePath, cancellationToken);
+
+                return Result<DocumentResponseDto>.Failure(DocumentErrors.PersistenceFailed(ex.Message));
+            }
+
+            // 9. Retorno de respuesta exitosa mapeada a DTO con Mapster
+            return Result<DocumentResponseDto>.Success(document.Adapt<DocumentResponseDto>());
         }
-
-        document.Chunks = chunks;
-
-        // 7. Almacenar puntos vectoriales en Qdrant
-        var vectorStoreResult = await _vectorStoreService.UpsertPointAsync(vectorPoints, cancellationToken);
-        if (vectorStoreResult.IsFailure)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return Result<DocumentResponseDto>.Failure(vectorStoreResult.Errors.ToArray());
+            _logger.LogError(ex, "Excepcion no controlada durante el procesamiento del documento. Limpiando almacenamiento fisico.");
+            await _fileStorageService.DeleteFileAsync(storagePath, cancellationToken);
+            throw;
         }
-
-        // 8. Persistencia atomica en SQL Server
-        await _documentRepository.AddAsync(document, cancellationToken);
-
-        // 9. Retorno de respuesta exitosa mapeada a DTO con Mapster
-        return Result<DocumentResponseDto>.Success(document.Adapt<DocumentResponseDto>());
     }
 
     public async Task<Result<DocumentResponseDto>> GetByIdAsync(Guid id, Guid tenantId, CancellationToken cancellationToken = default)
@@ -172,8 +213,13 @@ public class DocumentService : IDocumentService
             return Result<bool>.Failure(DocumentErrors.NotFound);
         }
 
-        // 1. Eliminar vectores en Qdrant
-        await _vectorStoreService.DeleteByDocumentAsync(id, tenantId, cancellationToken);
+        // 1. Eliminar vectores en Qdrant con validacion estricta de Result
+        var vectorDeletionResult = await _vectorStoreService.DeleteByDocumentAsync(id, tenantId, cancellationToken);
+        if (vectorDeletionResult.IsFailure)
+        {
+            _logger.LogError("Fallo al eliminar vectores en Qdrant para DocumentId: {DocumentId}. Se aborta la eliminacion en SQL para permitir reintentos.", id);
+            return Result<bool>.Failure(vectorDeletionResult.Errors.ToArray());
+        }
 
         // 2. Eliminar chunks en SQL Server
         await _documentChunkRepository.DeleteByDocumentIdAsync(id, cancellationToken);
