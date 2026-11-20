@@ -1,4 +1,5 @@
 using EnterpriseRag.IoC;
+using EnterpriseRag.WebApi.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,8 @@ builder.Services.AddExternalServicesDependencies(builder.Configuration);
 
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
