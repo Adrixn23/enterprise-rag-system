@@ -24,6 +24,8 @@
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Domain\EnterpriseRag.Core.Domain.csproj" />
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.ExternalServices\EnterpriseRag.Infrastructure.ExternalServices.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.Identity\EnterpriseRag.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\EnterpriseRag.WebApi\EnterpriseRag.WebApi.csproj" />
   </ItemGroup>
 
 </Project>
