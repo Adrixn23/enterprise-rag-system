@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Domain\EnterpriseRag.Core.Domain.csproj" />
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.ExternalServices\EnterpriseRag.Infrastructure.ExternalServices.csproj" />
   </ItemGroup>
 
 </Project>
