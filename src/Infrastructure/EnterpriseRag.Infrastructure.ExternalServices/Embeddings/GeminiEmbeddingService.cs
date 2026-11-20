@@ -43,7 +43,8 @@ public class GeminiEmbeddingService : IEmbeddingService
                 Content = new GeminiContent
                 {
                     Parts = [new GeminiPart { Text = text }]
-                }
+                },
+                OutputDimensionality = _settings.EmbeddingDimension
             };
 
             // 4. Envio de la peticion HTTP POST
@@ -117,7 +118,8 @@ public class GeminiEmbeddingService : IEmbeddingService
                     Content = new GeminiContent
                     {
                         Parts = [new GeminiPart { Text = t }]
-                    }
+                    },
+                    OutputDimensionality = _settings.EmbeddingDimension
                 }).ToList()
             };
 
@@ -179,6 +181,10 @@ public class GeminiEmbeddingService : IEmbeddingService
 
         [JsonPropertyName("content")]
         public GeminiContent Content { get; set; } = new();
+
+        [JsonPropertyName("outputDimensionality")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? OutputDimensionality { get; set; }
     }
 
     private sealed class GeminiContent
