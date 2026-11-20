@@ -85,7 +85,7 @@ public class DocumentServiceConsistencyTests
             .Setup(x => x.UpsertPointAsync(It.IsAny<IEnumerable<VectorPointDto>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result.Success());
 
-        // Simulamos la caída de SQL Server
+        
         _documentRepositoryMock
             .Setup(x => x.AddAsync(It.IsAny<Document>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TimeoutException("Database connection timed out"));
