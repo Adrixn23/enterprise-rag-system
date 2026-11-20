@@ -58,13 +58,18 @@ public class DocumentServiceConsistencyTests
         var tenantId = Guid.NewGuid();
         var storagePath = "docs/sample.pdf";
 
+        // Contenido con firma binaria real (Magic Bytes) de un PDF: %PDF-1.7
+        var validPdfBytes = "%PDF-1.7\nSample content"u8.ToArray();
         var fileMock = new Mock<IFormFile>();
-        fileMock.Setup(f => f.Length).Returns(1024);
+        fileMock.Setup(f => f.Length).Returns(validPdfBytes.Length);
         fileMock.Setup(f => f.FileName).Returns("sample.pdf");
         fileMock.Setup(f => f.ContentType).Returns("application/pdf");
-        fileMock.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+        fileMock.Setup(f => f.OpenReadStream()).Returns(() => new MemoryStream(validPdfBytes));
 
         _textExtractorServiceMock.Setup(x => x.CanExtract("application/pdf")).Returns(true);
+        _textExtractorServiceMock
+            .Setup(x => x.IsValidFileContent(It.IsAny<Stream>(), "application/pdf"))
+            .Returns(true);
         _fileStorageServiceMock
             .Setup(x => x.SaveFileAsync(It.IsAny<Stream>(), "sample.pdf", tenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(storagePath);
