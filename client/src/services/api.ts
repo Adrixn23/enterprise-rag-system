@@ -27,17 +27,21 @@ export const api = {
     return data;
   },
 
-  async register(fullName: string, email: string, password: string, tenantId: string): Promise<string> {
+  async register(fullName: string, email: string, password: string, tenantId?: string): Promise<string> {
+    const payload: Record<string, any> = {
+      fullName,
+      email,
+      password,
+      confirmPassword: password,
+    };
+    if (tenantId && tenantId.trim() !== '') {
+      payload.tenantId = tenantId.trim();
+    }
+
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName,
-        email,
-        password,
-        confirmPassword: password,
-        tenantId,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
