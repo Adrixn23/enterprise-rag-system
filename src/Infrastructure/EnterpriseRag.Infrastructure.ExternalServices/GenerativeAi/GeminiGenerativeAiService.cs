@@ -90,9 +90,15 @@ public class GeminiGenerativeAiService : IGenerativeAiService
 
             return Result<string>.Success(textResponse);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("La generación de respuesta con Gemini fue cancelada por el cliente.");
+            throw; // Propagar limpiamente hacia el pipeline ASP.NET Core
+        }
         catch (OperationCanceledException)
         {
-            return Result<string>.Failure(ChatErrors.GenerationFailed("La operacion fue cancelada."));
+            _logger.LogError("Timeout al comunicarse con Gemini Generative API.");
+            return Result<string>.Failure(ChatErrors.GenerationFailed("Timeout de comunicación con Gemini Generative AI."));
         }
         catch (Exception ex)
         {

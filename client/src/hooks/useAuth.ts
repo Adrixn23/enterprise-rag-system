@@ -50,9 +50,12 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(() => {
+    if (user?.id) {
+      localStorage.removeItem(`rag_chat_history_${user.id}`);
+    }
     api.logout();
     setUser(null);
-  }, []);
+  }, [user]);
 
   return {
     user,

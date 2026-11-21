@@ -79,7 +79,7 @@ export function App() {
 
         {activeTab === 'search' && <SemanticSearch />}
 
-        {activeTab === 'chat' && <RagChatWindow />}
+        {activeTab === 'chat' && <RagChatWindow userId={user.id} />}
       </main>
     </div>
   );

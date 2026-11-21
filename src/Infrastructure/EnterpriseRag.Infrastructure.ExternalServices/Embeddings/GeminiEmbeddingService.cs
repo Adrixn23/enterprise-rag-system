@@ -84,10 +84,15 @@ public class GeminiEmbeddingService : IEmbeddingService
             ReadOnlyMemory<float> vector = result.Embedding.Values;
             return Result<ReadOnlyMemory<float>>.Success(vector);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("La generación de embeddings fue cancelada por solicitud del cliente.");
+            throw; // Propagar limpiamente hacia el pipeline ASP.NET Core
+        }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("La operacion para generar embedding fue cancelada.");
-            return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.OperationCancelled);
+            _logger.LogError("Timeout al comunicarse con Gemini Embeddings API.");
+            return Result<ReadOnlyMemory<float>>.Failure(EmbeddingErrors.ApiError("504", "Timeout de servicio externo"));
         }
         catch (Exception ex)
         {

@@ -3,12 +3,16 @@ import { Bot, Sparkles, Send, ShieldCheck, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import type { ChatMessage } from '../../types/api';
 
-const CHAT_STORAGE_KEY = 'rag_chat_history';
+interface RagChatWindowProps {
+  userId: string;
+}
 
-export const RagChatWindow: React.FC = () => {
+export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
+  const chatStorageKey = `rag_chat_history_${userId}`;
+
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     try {
-      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+      const saved = localStorage.getItem(chatStorageKey);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -25,12 +29,12 @@ export const RagChatWindow: React.FC = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+      localStorage.setItem(chatStorageKey, JSON.stringify(chatMessages));
     } catch {
       // Ignorar si el almacenamiento local está lleno
     }
     scrollToBottom();
-  }, [chatMessages, chatLoading]);
+  }, [chatMessages, chatLoading, chatStorageKey]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +80,7 @@ export const RagChatWindow: React.FC = () => {
 
   const handleClearChat = () => {
     setChatMessages([]);
-    localStorage.removeItem(CHAT_STORAGE_KEY);
+    localStorage.removeItem(chatStorageKey);
   };
 
   return (

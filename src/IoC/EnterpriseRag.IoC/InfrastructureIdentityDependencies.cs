@@ -1,5 +1,6 @@
 using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Account;
+using EnterpriseRag.Core.Application.Contracts.Email;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Context;
 using EnterpriseRag.Infrastructure.Identity.Entities;
@@ -57,7 +58,8 @@ public static class InfrastructureIdentityDependencies
         .AddEntityFrameworkStores<IdentityContext>()
         .AddDefaultTokenProviders();
 
-        // 4. Registrar la inyección de dependencias para IAccountService
+        // 4. Registrar la inyección de dependencias para IAccountService y IEmailSenderService
+        services.AddTransient<IEmailSenderService, LoggingEmailSenderService>();
         services.AddTransient<IAccountService, AccountService>();
 
         // 5. Configurar la autenticación JWT Bearer

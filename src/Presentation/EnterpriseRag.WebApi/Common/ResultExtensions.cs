@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Mvc;
 
 public static class ResultExtensions
 {
-    public static IActionResult ToActionResult(this Result result)
+    public static IActionResult ToActionResult(this Result result, Func<IActionResult>? onSuccess = null)
     {
         if (result.IsSuccess)
         {
-            return new NoContentResult();
+            return onSuccess != null ? onSuccess() : new NoContentResult();
         }
 
         return MapErrorsToActionResult(result.Errors);

@@ -21,18 +21,26 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
             _logger.LogInformation("La solicitud HTTP fue cancelada por el cliente. TraceId: {TraceId}", traceId);
-            context.Response.StatusCode = 499; // Client Closed Request
+
+            // No escribir en la respuesta si el cliente ya cerró el socket o si las cabeceras ya se enviaron
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 499; // Client Closed Request
+            }
         }
         catch (Exception ex)
         {
             var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
             _logger.LogError(ex, "Excepción no controlada capturada por el middleware global. TraceId: {TraceId}", traceId);
 
-            await HandleExceptionAsync(context, ex, traceId);
+            if (!context.Response.HasStarted)
+            {
+                await HandleExceptionAsync(context, ex, traceId);
+            }
         }
     }
 

@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Account;
+using EnterpriseRag.Core.Application.Contracts.Email;
 using EnterpriseRag.Core.Application.DTOs.Account;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors;
@@ -10,6 +11,7 @@ using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -21,17 +23,23 @@ public class AccountService : IAccountService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly JWTSettings _jwtSettings;
+    private readonly IHostEnvironment _environment;
+    private readonly IEmailSenderService _emailSender;
     private readonly ILogger<AccountService> _logger;
 
     public AccountService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IOptions<JWTSettings> jwtSettings,
+        IHostEnvironment environment,
+        IEmailSenderService emailSender,
         ILogger<AccountService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtSettings = jwtSettings.Value;
+        _environment = environment;
+        _emailSender = emailSender;
         _logger = logger;
     }
 
@@ -55,13 +63,17 @@ public class AccountService : IAccountService
         // un flujo autorizado de invitación gestionado por el administrador del tenant.
         var assignedTenantId = Guid.NewGuid();
 
+        // En Development se permite auto-confirmación para pruebas locales ágiles.
+        // En Production, EmailConfirmed inicia estrictamente en false y requiere confirmación por token.
+        var isDevelopment = _environment.IsDevelopment();
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
             Email = request.Email,
             FullName = request.FullName,
             TenantId = assignedTenantId,
-            EmailConfirmed = true // Marcado directo para entorno local; requiere servicio de correo en producción
+            EmailConfirmed = isDevelopment
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
@@ -89,7 +101,37 @@ public class AccountService : IAccountService
             return Result<string>.Failure(roleErrors);
         }
 
+        // En producción, generar token y despachar enlace de verificación
+        if (!isDevelopment)
+        {
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var confirmationLink = $"/api/v1/auth/confirm-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
+            await _emailSender.SendEmailConfirmationAsync(user.Email, confirmationLink);
+        }
+
         return Result<string>.Success(user.Id.ToString());
+    }
+
+    public async Task<Result> ConfirmEmailAsync(Guid userId, string token)
+    {
+        if (userId == Guid.Empty || string.IsNullOrWhiteSpace(token))
+        {
+            return Result.Failure(AccountErrors.InvalidConfirmationToken);
+        }
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            return Result.Failure(AccountErrors.InvalidConfirmationToken);
+        }
+
+        var result = await _userManager.ConfirmEmailAsync(user, token);
+        if (!result.Succeeded)
+        {
+            return Result.Failure(AccountErrors.InvalidConfirmationToken);
+        }
+
+        return Result.Success();
     }
 
     public async Task<Result<AuthenticationResponseDto>> AuthenticationAsync(LoginRequestDto request)
@@ -98,6 +140,12 @@ public class AccountService : IAccountService
         if (user == null)
         {
             return Result<AuthenticationResponseDto>.Failure(AccountErrors.InvalidCredentials);
+        }
+
+        // En entornos que no sean Development, exigir correo confirmado antes de permitir el login
+        if (!_environment.IsDevelopment() && !user.EmailConfirmed)
+        {
+            return Result<AuthenticationResponseDto>.Failure(AccountErrors.EmailNotConfirmed);
         }
 
         // Bloqueo habilitado contra ataques de fuerza bruta (lockoutOnFailure: true)

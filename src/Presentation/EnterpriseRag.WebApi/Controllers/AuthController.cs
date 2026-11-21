@@ -49,4 +49,13 @@ public class AuthController : ControllerBase
         var result = await _accountService.RegisterAsync(request);
         return result.ToActionResult(userId => Ok(new { UserId = userId }));
     }
+
+    [HttpGet("confirm-email")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmEmail([FromQuery] Guid userId, [FromQuery] string token)
+    {
+        var result = await _accountService.ConfirmEmailAsync(userId, token);
+        return result.ToActionResult(() => Ok(new { Message = "Correo electrónico confirmado exitosamente." }));
+    }
 }
