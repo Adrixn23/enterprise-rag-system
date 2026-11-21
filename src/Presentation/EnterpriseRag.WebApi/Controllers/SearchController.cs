@@ -2,6 +2,7 @@ namespace EnterpriseRag.WebApi.Controllers;
 
 using EnterpriseRag.Core.Application.Contracts.Search;
 using EnterpriseRag.Core.Application.DTOs.Search;
+using EnterpriseRag.WebApi.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,19 +33,7 @@ public class SearchController : ControllerBase
         }
 
         var result = await _searchService.SearchAsync(request, tenantId, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = firstError?.Code ?? "Search.Failed",
-                Detail = firstError?.Description ?? "Ocurrió un error al procesar la búsqueda semántica."
-            });
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult();
     }
 
     private bool TryResolveTenantId(out Guid tenantId)

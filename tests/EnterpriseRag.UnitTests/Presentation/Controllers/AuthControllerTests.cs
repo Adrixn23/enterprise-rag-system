@@ -125,9 +125,9 @@ public class AuthControllerTests
         var actionResult = await _sut.Register(request);
 
         // Assert
-        var badRequestResult = actionResult.Should().BeOfType<BadRequestObjectResult>().Subject;
-        badRequestResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-        var problem = badRequestResult.Value.Should().BeOfType<ProblemDetails>().Subject;
+        var conflictResult = actionResult.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflictResult.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        var problem = conflictResult.Value.Should().BeOfType<ProblemDetails>().Subject;
         problem.Title.Should().Be("Account.EmailAlreadyExists");
     }
 }
