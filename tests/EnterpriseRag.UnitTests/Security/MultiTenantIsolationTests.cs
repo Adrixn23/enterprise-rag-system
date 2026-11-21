@@ -82,4 +82,15 @@ public class MultiTenantIsolationTests
             x => x.GetByTenantAsync(userTenantId, It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public void RegisterRequestDto_DoesNotContainTenantIdField_PreventingArbitraryTenantSelection()
+    {
+        // Assert: Verifica por reflexión arquitectónica que el cliente no tiene capacidad de enviar TenantId en el DTO de registro
+        var tenantIdProperty = typeof(EnterpriseRag.Core.Application.DTOs.Account.RegisterRequestDto)
+            .GetProperty("TenantId");
+
+        tenantIdProperty.Should().BeNull(
+            "por diseño de seguridad B2B estricto, el cliente nunca debe poder suministrar un TenantId arbitrario en el registro");
+    }
 }

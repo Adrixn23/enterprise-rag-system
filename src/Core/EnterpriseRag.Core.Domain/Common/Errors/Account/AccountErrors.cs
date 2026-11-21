@@ -16,4 +16,13 @@ public static class AccountErrors
 
     public static Error RegistrationFailed(string description) =>
         new("Account.RegistrationFailed", description);
+
+    public static Error PasswordsDoNotMatch =>
+        new("Account.PasswordsDoNotMatch", "La contraseña y la confirmación de la contraseña no coinciden.");
+
+    public static Error RoleAssignmentFailed =>
+        new("Account.RoleAssignmentFailed", "No se pudo asignar el rol inicial al usuario.");
+
+    public static Error InconsistentUserState =>
+        new("Account.InconsistentUserState", "Error crítico en el aprovisionamiento de usuario. La operación fue abortada por seguridad.");
 }

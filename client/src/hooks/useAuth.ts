@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { api } from '../services/api';
 import type { UserProfile } from '../types/api';
 
@@ -7,6 +7,17 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Escuchar eventos globales de 401 para desloguear automáticamente
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setError('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+    };
+
+    window.addEventListener('rag_unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('rag_unauthorized', handleUnauthorized);
+  }, []);
+
   const login = useCallback(async (email: string, pass: string) => {
     setIsLoading(true);
     setError(null);
@@ -14,22 +25,24 @@ export function useAuth() {
       const profile = await api.login(email, pass);
       setUser(profile);
       return profile;
-    } catch (err: any) {
-      setError(err.message || 'Error en la autenticación');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error en la autenticación';
+      setError(msg);
       throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const register = useCallback(async (fullName: string, email: string, pass: string, tenantId?: string) => {
+  const register = useCallback(async (fullName: string, email: string, pass: string, confirmPass: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const userId = await api.register(fullName, email, pass, tenantId);
+      const userId = await api.register(fullName, email, pass, confirmPass);
       return userId;
-    } catch (err: any) {
-      setError(err.message || 'Error en el registro');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error en el registro';
+      setError(msg);
       throw err;
     } finally {
       setIsLoading(false);

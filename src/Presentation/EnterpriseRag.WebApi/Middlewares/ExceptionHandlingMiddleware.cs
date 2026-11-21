@@ -21,6 +21,12 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException)
+        {
+            var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+            _logger.LogInformation("La solicitud HTTP fue cancelada por el cliente. TraceId: {TraceId}", traceId);
+            context.Response.StatusCode = 499; // Client Closed Request
+        }
         catch (Exception ex)
         {
             var traceId = Activity.Current?.Id ?? context.TraceIdentifier;

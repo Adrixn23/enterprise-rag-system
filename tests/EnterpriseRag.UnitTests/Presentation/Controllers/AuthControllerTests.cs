@@ -113,8 +113,7 @@ public class AuthControllerTests
             Email = "existing@ragcorp.com",
             Password = "Password@123!",
             ConfirmPassword = "Password@123!",
-            FullName = "Existing User",
-            TenantId = Guid.NewGuid()
+            FullName = "Existing User"
         };
 
         _accountServiceMock

@@ -39,6 +39,11 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export interface ChatResponse {
+  answer: string;
+  sources: ChatSource[];
+}
+
 export interface ApiError {
   status: number;
   title: string;

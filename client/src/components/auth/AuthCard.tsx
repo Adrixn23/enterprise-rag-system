@@ -3,7 +3,7 @@ import { Bot, ChevronRight, ShieldCheck } from 'lucide-react';
 
 interface AuthCardProps {
   onLogin: (email: string, pass: string) => Promise<any>;
-  onRegister: (fullName: string, email: string, pass: string, tenantId?: string) => Promise<any>;
+  onRegister: (fullName: string, email: string, pass: string, confirmPass: string) => Promise<any>;
   isLoading: boolean;
   error: string | null;
   onErrorChange: (err: string | null) => void;
@@ -19,8 +19,8 @@ export const AuthCard: React.FC<AuthCardProps> = ({
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [tenantId, setTenantId] = useState('');
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,16 +28,16 @@ export const AuthCard: React.FC<AuthCardProps> = ({
     onErrorChange(null);
     setSuccessNotice(null);
 
+    if (isRegisterMode && password !== confirmPassword) {
+      onErrorChange('La contraseña y la confirmación no coinciden.');
+      return;
+    }
+
     try {
       if (isRegisterMode) {
-        await onRegister(
-          fullName,
-          email,
-          password,
-          tenantId.trim() ? tenantId.trim() : undefined
-        );
+        await onRegister(fullName, email, password, confirmPassword);
         setIsRegisterMode(false);
-        setSuccessNotice('Cuenta registrada con éxito. Ya puedes iniciar sesión.');
+        setSuccessNotice('Organización y cuenta creadas con éxito. Ya puedes iniciar sesión.');
       } else {
         await onLogin(email, password);
       }
@@ -55,7 +55,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-white m-0">Enterprise RAG</h1>
-            <p className="text-xs text-slate-400 m-0">Sistema Multitenant & Asistente B2B</p>
+            <p className="text-xs text-slate-400 m-0">Plataforma Multitenant Empresarial</p>
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
               isRegisterMode ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Registrarse
+            Crear Organización
           </button>
         </div>
 
@@ -113,20 +113,11 @@ export const AuthCard: React.FC<AuthCardProps> = ({
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-slate-300">Tenant ID (Opcional)</label>
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-indigo-400" /> Auto-asignado si está vacío
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  value={tenantId}
-                  onChange={e => setTenantId(e.target.value)}
-                  placeholder="Dejar en blanco para crear nuevo tenant"
-                  className="w-full bg-[#151a27] border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                />
+              <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-900/50 text-[11px] text-indigo-300 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <span>
+                  Cada registro crea un <strong>Tenant aislado</strong> automáticamente con identificador criptográfico único para garantizar la privacidad de los documentos.
+                </span>
               </div>
             </>
           )}
@@ -155,6 +146,20 @@ export const AuthCard: React.FC<AuthCardProps> = ({
             />
           </div>
 
+          {isRegisterMode && (
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">Confirmar Contraseña</label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full bg-[#151a27] border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
@@ -164,7 +169,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <span>{isRegisterMode ? 'Crear Cuenta Segura' : 'Acceder al Sistema'}</span>
+                <span>{isRegisterMode ? 'Crear Organización Segura' : 'Acceder al Sistema'}</span>
                 <ChevronRight className="w-4 h-4" />
               </>
             )}

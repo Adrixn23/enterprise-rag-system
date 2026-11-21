@@ -41,7 +41,12 @@ public static class ResultExtensions
             var c when c.EndsWith(".InvalidCredentials", StringComparison.OrdinalIgnoreCase) || c.EndsWith(".Unauthorized", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status401Unauthorized,
             var c when c.EndsWith(".Forbidden", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status403Forbidden,
             var c when c.EndsWith(".EmailAlreadyExists", StringComparison.OrdinalIgnoreCase) || c.EndsWith(".Conflict", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status409Conflict,
-            var c when c.EndsWith(".PersistenceFailed", StringComparison.OrdinalIgnoreCase) || c.EndsWith(".Unexpected", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status500InternalServerError,
+            var c when c.EndsWith(".PersistenceFailed", StringComparison.OrdinalIgnoreCase) 
+                    || c.EndsWith(".Unexpected", StringComparison.OrdinalIgnoreCase)
+                    || c.EndsWith(".InconsistentUserState", StringComparison.OrdinalIgnoreCase)
+                    || c.StartsWith("Server.", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status500InternalServerError,
+            var c when c.EndsWith(".ServiceUnavailable", StringComparison.OrdinalIgnoreCase) 
+                    || c.EndsWith(".ExternalServiceError", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest
         };
 

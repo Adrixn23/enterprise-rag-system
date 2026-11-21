@@ -1,10 +1,37 @@
-import type { UserProfile, DocumentItem, SearchResultChunk } from '../types/api';
+import type { UserProfile, DocumentItem, SearchResultChunk, ChatResponse } from '../types/api';
 
 const API_BASE = '/api/v1';
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('rag_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    // Expiración o token inválido: limpiar sesión y notificar
+    localStorage.removeItem('rag_token');
+    localStorage.removeItem('rag_user');
+    window.dispatchEvent(new Event('rag_unauthorized'));
+    throw new Error('Tu sesión ha expirado o no es válida. Por favor, inicia sesión nuevamente.');
+  }
+
+  if (!res.ok) {
+    let errorDetail = 'Ocurrió un error en la solicitud.';
+    try {
+      const errJson = await res.json();
+      errorDetail = errJson.detail || errJson.title || errorDetail;
+    } catch {
+      errorDetail = `Error ${res.status}: ${res.statusText}`;
+    }
+    throw new Error(errorDetail);
+  }
+
+  if (res.status === 204) {
+    return {} as T;
+  }
+
+  return res.json();
 }
 
 export const api = {
@@ -16,40 +43,25 @@ export const api = {
       body: JSON.stringify({ email, password }),
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Credenciales inválidas' }));
-      throw new Error(err.detail || 'Fallo en la autenticación');
-    }
-
-    const data: UserProfile = await res.json();
+    const data = await handleResponse<UserProfile>(res);
     localStorage.setItem('rag_token', data.token);
     localStorage.setItem('rag_user', JSON.stringify(data));
     return data;
   },
 
-  async register(fullName: string, email: string, password: string, tenantId?: string): Promise<string> {
-    const payload: Record<string, any> = {
-      fullName,
-      email,
-      password,
-      confirmPassword: password,
-    };
-    if (tenantId && tenantId.trim() !== '') {
-      payload.tenantId = tenantId.trim();
-    }
-
+  async register(fullName: string, email: string, password: string, confirmPassword?: string): Promise<string> {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        fullName,
+        email,
+        password,
+        confirmPassword: confirmPassword || password,
+      }),
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error al registrar usuario' }));
-      throw new Error(err.detail || 'Fallo al registrar usuario');
-    }
-
-    const data = await res.json();
+    const data = await handleResponse<{ userId: string }>(res);
     return data.userId;
   },
 
@@ -60,7 +72,15 @@ export const api = {
 
   getCurrentUser(): UserProfile | null {
     const raw = localStorage.getItem('rag_user');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as UserProfile;
+    } catch (e) {
+      console.warn('Datos de sesión corruptos en localStorage. Limpiando...', e);
+      localStorage.removeItem('rag_user');
+      localStorage.removeItem('rag_token');
+      return null;
+    }
   },
 
   // Documentos
@@ -68,8 +88,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/documents`, {
       headers: { ...getAuthHeader() },
     });
-    if (!res.ok) throw new Error('Error al obtener documentos');
-    return res.json();
+    return handleResponse<DocumentItem[]>(res);
   },
 
   async uploadDocument(file: File): Promise<DocumentItem> {
@@ -82,12 +101,7 @@ export const api = {
       body: formData,
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error al subir documento' }));
-      throw new Error(err.detail || 'Fallo en la carga del archivo');
-    }
-
-    return res.json();
+    return handleResponse<DocumentItem>(res);
   },
 
   async deleteDocument(id: string): Promise<void> {
@@ -95,7 +109,7 @@ export const api = {
       method: 'DELETE',
       headers: { ...getAuthHeader() },
     });
-    if (!res.ok) throw new Error('Error al eliminar documento');
+    return handleResponse<void>(res);
   },
 
   // Búsqueda Semántica
@@ -109,26 +123,20 @@ export const api = {
       body: JSON.stringify({ query, topK, minScore }),
     });
 
-    if (!res.ok) throw new Error('Error en la búsqueda semántica');
-    return res.json();
+    return handleResponse<SearchResultChunk[]>(res);
   },
 
-  // Chat RAG
-  async ask(message: string, topK = 4, minScore = 0.65) {
-    const res = await fetch(`${API_BASE}/chat`, {
+  // RAG Chat
+  async ask(query: string): Promise<ChatResponse> {
+    const res = await fetch(`${API_BASE}/chat/ask`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ message, topK, minScore }),
+      body: JSON.stringify({ query }),
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Error al consultar al asistente' }));
-      throw new Error(err.detail || 'Error en la consulta');
-    }
-
-    return res.json() as Promise<{ answer: string; sources: Array<{ documentId: string; fileName: string; score: number; snippet: string }> }>;
+    return handleResponse<ChatResponse>(res);
   },
 };

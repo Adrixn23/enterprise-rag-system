@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, Database, CheckCircle2, Trash2 } from 'lucide-react';
+import { Upload, FileText, Database, CheckCircle2, Trash2, AlertCircle } from 'lucide-react';
 import type { DocumentItem } from '../../types/api';
 
 interface DocumentsManagerProps {
@@ -16,18 +16,19 @@ export const DocumentsManager: React.FC<DocumentsManagerProps> = ({
   onDelete,
 }) => {
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadLoading(true);
-    setUploadError(null);
+    setOperationError(null);
     try {
       await onUpload(file);
-    } catch (err: any) {
-      setUploadError(err.message || 'Error al procesar el archivo');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al procesar el archivo';
+      setOperationError(msg);
     } finally {
       setUploadLoading(false);
       e.target.value = '';
@@ -36,10 +37,12 @@ export const DocumentsManager: React.FC<DocumentsManagerProps> = ({
 
   const handleDelete = async (id: string, fileName: string) => {
     if (!confirm(`¿Eliminar "${fileName}" y todos sus vectores asociados en Qdrant?`)) return;
+    setOperationError(null);
     try {
       await onDelete(id);
-    } catch (err: any) {
-      alert(err.message || 'Error al eliminar documento');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar documento';
+      setOperationError(msg);
     }
   };
 
@@ -68,9 +71,10 @@ export const DocumentsManager: React.FC<DocumentsManagerProps> = ({
         </div>
       </div>
 
-      {uploadError && (
-        <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs">
-          {uploadError}
+      {operationError && (
+        <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{operationError}</span>
         </div>
       )}
 

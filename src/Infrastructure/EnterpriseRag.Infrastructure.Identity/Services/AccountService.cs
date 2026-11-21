@@ -10,6 +10,7 @@ using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -20,31 +21,39 @@ public class AccountService : IAccountService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly JWTSettings _jwtSettings;
+    private readonly ILogger<AccountService> _logger;
 
     public AccountService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IOptions<JWTSettings> jwtSettings)
+        IOptions<JWTSettings> jwtSettings,
+        ILogger<AccountService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtSettings = jwtSettings.Value;
+        _logger = logger;
     }
 
     public async Task<Result<string>> RegisterAsync(RegisterRequestDto request)
     {
+        if (request.Password != request.ConfirmPassword)
+        {
+            return Result<string>.Failure(AccountErrors.PasswordsDoNotMatch);
+        }
+
         var userWithSameEmail = await _userManager.FindByEmailAsync(request.Email);
         if (userWithSameEmail != null)
         {
             return Result<string>.Failure(AccountErrors.EmailAlreadyExists);
         }
 
-        // Estrategia segura de aprovisionamiento de Tenant:
-        // Si el cliente no provee un TenantId legítimo (registro auto-servicio público),
-        // se genera de forma segura un nuevo TenantId propio para aislar su organización.
-        var assignedTenantId = (request.TenantId.HasValue && request.TenantId.Value != Guid.Empty)
-            ? request.TenantId.Value
-            : Guid.NewGuid();
+        // SEGURIDAD MULTITENANT B2B ESTRICTA:
+        // En el registro público de auto-servicio, NUNCA se confía en un TenantId proveniente del cliente.
+        // Cada registro genera un nuevo TenantId criptográfico (Guid.NewGuid()) asignando una organización
+        // completamente aislada. La incorporación a una organización existente debe ocurrir mediante
+        // un flujo autorizado de invitación gestionado por el administrador del tenant.
+        var assignedTenantId = Guid.NewGuid();
 
         var user = new ApplicationUser
         {
@@ -52,7 +61,7 @@ public class AccountService : IAccountService
             Email = request.Email,
             FullName = request.FullName,
             TenantId = assignedTenantId,
-            EmailConfirmed = true
+            EmailConfirmed = true // Marcado directo para entorno local; requiere servicio de correo en producción
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
@@ -66,8 +75,16 @@ public class AccountService : IAccountService
         var roleResult = await _userManager.AddToRoleAsync(user, Roles.Operador.ToString());
         if (!roleResult.Succeeded)
         {
-            // Compensación atómica: si falla la asignación de rol, eliminar el usuario recién creado
-            await _userManager.DeleteAsync(user);
+            _logger.LogWarning("Falló la asignación del rol al usuario {UserId}. Ejecutando compensación...", user.Id);
+            
+            // Compensación atómica: eliminar el usuario recién creado
+            var deleteResult = await _userManager.DeleteAsync(user);
+            if (!deleteResult.Succeeded)
+            {
+                _logger.LogCritical("CRITICAL: Falló la compensación de eliminación para el usuario {UserId}. Estado inconsistente en Identity.", user.Id);
+                return Result<string>.Failure(AccountErrors.InconsistentUserState);
+            }
+
             var roleErrors = roleResult.Errors.Select(e => new Error(e.Code, e.Description)).ToList();
             return Result<string>.Failure(roleErrors);
         }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, FileText } from 'lucide-react';
+import { Search, FileText, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import type { SearchResultChunk } from '../../types/api';
 
@@ -7,6 +7,7 @@ export const SemanticSearch: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultChunk[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -14,12 +15,14 @@ export const SemanticSearch: React.FC = () => {
     if (!searchQuery.trim() || searchLoading) return;
 
     setSearchLoading(true);
+    setSearchError(null);
     setHasSearched(true);
     try {
       const results = await api.search(searchQuery);
       setSearchResults(results);
-    } catch (err: any) {
-      alert(err.message || 'Error en la búsqueda');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error en la búsqueda';
+      setSearchError(msg);
     } finally {
       setSearchLoading(false);
     }
@@ -56,6 +59,13 @@ export const SemanticSearch: React.FC = () => {
         </button>
       </form>
 
+      {searchError && (
+        <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{searchError}</span>
+        </div>
+      )}
+
       <div className="space-y-3">
         {searchResults.map((item, idx) => (
           <div key={idx} className="bg-[#0f131c] border border-slate-800 rounded-xl p-4.5 space-y-2">
@@ -72,7 +82,7 @@ export const SemanticSearch: React.FC = () => {
           </div>
         ))}
 
-        {hasSearched && !searchLoading && searchResults.length === 0 && (
+        {hasSearched && !searchLoading && !searchError && searchResults.length === 0 && (
           <div className="p-8 text-center text-slate-500 text-xs bg-[#0f131c] border border-slate-800 rounded-xl">
             No se encontraron fragmentos relevantes que superen el umbral de similitud.
           </div>

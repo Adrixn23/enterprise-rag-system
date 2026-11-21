@@ -1,12 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Sparkles, Send, ShieldCheck } from 'lucide-react';
+import { Bot, Sparkles, Send, ShieldCheck, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import type { ChatMessage } from '../../types/api';
 
+const CHAT_STORAGE_KEY = 'rag_chat_history';
+
 export const RagChatWindow: React.FC = () => {
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -14,6 +24,11 @@ export const RagChatWindow: React.FC = () => {
   };
 
   useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+    } catch {
+      // Ignorar si el almacenamiento local está lleno
+    }
     scrollToBottom();
   }, [chatMessages, chatLoading]);
 
@@ -32,6 +47,7 @@ export const RagChatWindow: React.FC = () => {
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
     setChatLoading(true);
+    setChatError(null);
 
     try {
       const res = await api.ask(userQuery);
@@ -43,17 +59,24 @@ export const RagChatWindow: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setChatMessages(prev => [...prev, assistantMsg]);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido al procesar respuesta';
+      setChatError(msg);
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Error al procesar la respuesta: ${err.message}`,
+        content: `Error al procesar la respuesta: ${msg}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setChatMessages(prev => [...prev, errorMsg]);
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const handleClearChat = () => {
+    setChatMessages([]);
+    localStorage.removeItem(CHAT_STORAGE_KEY);
   };
 
   return (
@@ -64,7 +87,17 @@ export const RagChatWindow: React.FC = () => {
           <Sparkles className="w-4 h-4 text-indigo-400" />
           <span className="text-xs font-semibold text-white">Asistente Corporativo Gemini RAG</span>
         </div>
-        <span className="text-[10px] text-slate-500 font-mono">gemini-embedding-001 (768d) + Gemini 2.5 Flash</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">gemini-embedding-001 (768d) + Gemini 2.5 Flash</span>
+          {chatMessages.length > 0 && (
+            <button
+              onClick={handleClearChat}
+              className="text-[10px] text-slate-400 hover:text-red-400 transition-colors"
+            >
+              Limpiar chat
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mensajes */}
@@ -122,6 +155,13 @@ export const RagChatWindow: React.FC = () => {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {chatError && (
+        <div className="px-4 py-2 bg-red-950/40 border-t border-red-800/60 text-red-300 text-[11px] flex items-center gap-2">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{chatError}</span>
+        </div>
+      )}
 
       {/* Input del Chat */}
       <form onSubmit={handleSendMessage} className="p-3.5 border-t border-slate-800 bg-[#121622] flex gap-2">
