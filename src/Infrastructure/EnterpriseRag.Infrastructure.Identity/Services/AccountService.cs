@@ -39,12 +39,19 @@ public class AccountService : IAccountService
             return Result<string>.Failure(AccountErrors.EmailAlreadyExists);
         }
 
+        // Estrategia segura de aprovisionamiento de Tenant:
+        // Si el cliente no provee un TenantId legítimo (registro auto-servicio público),
+        // se genera de forma segura un nuevo TenantId propio para aislar su organización.
+        var assignedTenantId = (request.TenantId.HasValue && request.TenantId.Value != Guid.Empty)
+            ? request.TenantId.Value
+            : Guid.NewGuid();
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
             Email = request.Email,
             FullName = request.FullName,
-            TenantId = request.TenantId,
+            TenantId = assignedTenantId,
             EmailConfirmed = true
         };
 
@@ -56,7 +63,14 @@ public class AccountService : IAccountService
             return Result<string>.Failure(errors);
         }
 
-        await _userManager.AddToRoleAsync(user, Roles.Operador.ToString());
+        var roleResult = await _userManager.AddToRoleAsync(user, Roles.Operador.ToString());
+        if (!roleResult.Succeeded)
+        {
+            // Compensación atómica: si falla la asignación de rol, eliminar el usuario recién creado
+            await _userManager.DeleteAsync(user);
+            var roleErrors = roleResult.Errors.Select(e => new Error(e.Code, e.Description)).ToList();
+            return Result<string>.Failure(roleErrors);
+        }
 
         return Result<string>.Success(user.Id.ToString());
     }
