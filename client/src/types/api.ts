@@ -28,7 +28,8 @@ export interface PagedResponse<T> {
 
 export interface SearchResultChunk {
   documentId: string;
-  fileName: string;
+  documentFileName?: string;
+  fileName?: string;
   chunkIndex: number;
   content: string;
   score: number;

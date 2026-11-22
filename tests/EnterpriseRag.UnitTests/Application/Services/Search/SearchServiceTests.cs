@@ -136,4 +136,47 @@ public class SearchServiceTests
             x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task SearchAsync_WhenDocumentFileNameIsMissing_ShouldUseNeutralFallbackInsteadOfDesconocido()
+    {
+        var tenantId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var request = new SearchQueryRequestDto
+        {
+            Query = "politica de seguridad",
+            Limit = 5,
+            MinScore = 0.60f
+        };
+
+        var fakeEmbedding = new ReadOnlyMemory<float>(new float[768]);
+        _embeddingServiceMock
+            .Setup(x => x.GenerateEmbeddingAsync(request.Query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ReadOnlyMemory<float>>.Success(fakeEmbedding));
+
+        _vectorStoreServiceMock
+            .Setup(x => x.SearchAsync(fakeEmbedding, tenantId, request.Limit, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<List<VectorSearchResultDto>>.Success(
+            [
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = documentId,
+                    ChunkIndex = 0,
+                    Content = "Contenido del documento.",
+                    Score = 0.80f
+                }
+            ]));
+
+        _documentRepositoryMock
+            .Setup(x => x.GetFileNamesByIdsAsync(It.IsAny<IEnumerable<Guid>>(), tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+
+        var result = await _sut.SearchAsync(request, tenantId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(1);
+        result.Value![0].DocumentFileName.Should().Be("Documento");
+        result.Value[0].DocumentFileName.Should().NotBe("Desconocido");
+    }
 }

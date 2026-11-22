@@ -113,7 +113,10 @@ public class ChatService : IChatService
             Sources = relevantChunks.Select(c => new ChatSourceDto
             {
                 DocumentId = c.DocumentId,
-                DocumentFileName = c.DocumentFileName ?? "Documento",
+                DocumentFileName = string.IsNullOrWhiteSpace(c.DocumentFileName) ||
+                                   c.DocumentFileName.Equals("Desconocido", StringComparison.OrdinalIgnoreCase)
+                    ? "Documento"
+                    : c.DocumentFileName,
                 ChunkIndex = c.ChunkIndex,
                 Content = c.Content,
                 RelevanceScore = c.Score

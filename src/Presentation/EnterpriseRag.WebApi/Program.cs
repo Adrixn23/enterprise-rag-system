@@ -37,7 +37,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Rate Limiting por IP (memoria local por instancia; en multi-instancia requiere almacén distribuido como Redis)
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

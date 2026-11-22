@@ -104,14 +104,20 @@ public class SearchService : ISearchService
             var documentIds = filteredPoints.Select(p => p.DocumentId).Distinct().ToList();
             var documentNames = await _documentRepository.GetFileNamesByIdsAsync(documentIds, tenantId, cancellationToken);
 
-            var results = filteredPoints.Select(p => new SearchResultDto
+            var results = filteredPoints.Select(p =>
             {
-                PointId = p.PointId,
-                DocumentId = p.DocumentId,
-                DocumentFileName = documentNames.GetValueOrDefault(p.DocumentId, "Desconocido"),
-                ChunkIndex = p.ChunkIndex,
-                Content = p.Content ?? string.Empty,
-                Score = p.Score
+                var hasFileName = documentNames.TryGetValue(p.DocumentId, out var fileName)
+                    && !string.IsNullOrWhiteSpace(fileName);
+
+                return new SearchResultDto
+                {
+                    PointId = p.PointId,
+                    DocumentId = p.DocumentId,
+                    DocumentFileName = hasFileName ? fileName! : "Documento",
+                    ChunkIndex = p.ChunkIndex,
+                    Content = p.Content ?? string.Empty,
+                    Score = p.Score
+                };
             }).ToList();
 
             return Result<List<SearchResultDto>>.Success(results);

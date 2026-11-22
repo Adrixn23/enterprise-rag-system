@@ -17,12 +17,28 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
-    let errorDetail = 'Ocurrió un error en la solicitud.';
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(
+        'El servicio no está disponible en este momento. Por favor, inténtalo de nuevo en unos instantes.'
+      );
+    }
+
+    let errorDetail = 'No se pudo completar la solicitud. Por favor, inténtalo nuevamente.';
     try {
       const errJson = await res.json();
-      errorDetail = errJson.detail || errJson.title || errorDetail;
+      if (typeof errJson?.detail === 'string' && errJson.detail.trim()) {
+        errorDetail = errJson.detail;
+      } else if (typeof errJson?.title === 'string' && errJson.title.trim() && res.status < 500) {
+        errorDetail = errJson.title;
+      }
     } catch {
-      errorDetail = `Error ${res.status}: ${res.statusText}`;
+      if (res.status === 403) {
+        errorDetail = 'No tienes permiso para realizar esta acción.';
+      } else if (res.status === 404) {
+        errorDetail = 'No encontramos la información solicitada.';
+      } else if (res.status >= 500) {
+        errorDetail = 'Ocurrió un inconveniente temporal al procesar tu solicitud. Por favor, inténtalo de nuevo.';
+      }
     }
     throw new Error(errorDetail);
   }

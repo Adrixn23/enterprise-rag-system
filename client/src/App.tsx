@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
+import { useTheme } from './hooks/useTheme';
 import { Navbar } from './components/layout/Navbar';
 import { AuthCard } from './components/auth/AuthCard';
 import { DocumentsManager } from './components/documents/DocumentsManager';
@@ -10,6 +11,7 @@ import type { DocumentItem } from './types/api';
 
 export function App() {
   const { user, isAuthenticated, isLoading: authLoading, error: authError, setError: setAuthError, login, register, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'documents' | 'search' | 'chat'>('documents');
 
   // Estado de Documentos
@@ -67,20 +69,29 @@ export function App() {
         isLoading={authLoading}
         error={authError}
         onErrorChange={setAuthError}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-200 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-main)] flex flex-col relative theme-slow">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 bottom-0 h-80 crimson-bottom-wash z-0"
+      />
       <Navbar
         user={user}
         activeTab={activeTab}
+        documentCount={documents.length}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onTabChange={setActiveTab}
         onLogout={logout}
       />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-6">
+      <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-7 sm:py-9 animate-soft-enter">
         {activeTab === 'documents' && (
           <DocumentsManager
             documents={documents}
