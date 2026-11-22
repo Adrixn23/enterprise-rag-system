@@ -5,6 +5,37 @@
 ### Plataforma Empresarial de Retrieval-Augmented Generation (RAG) & Asistente Corporativo Multi-Tenant
 *Clean Architecture · .NET 9 · C# 13 · SQL Server 2022 · Qdrant Vector DB · Google Gemini · React 19 + TypeScript + Vite*
 
+<p>
+  <img src="https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt=".NET 9" />
+  <img src="https://img.shields.io/badge/C%23-13-239120?style=for-the-badge&logo=csharp&logoColor=white" alt="C# 13" />
+  <img src="https://img.shields.io/badge/ASP.NET_Core-Web_API-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt="ASP.NET Core Web API" />
+  <img src="https://img.shields.io/badge/EF_Core-9.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt="Entity Framework Core 9" />
+  <img src="https://img.shields.io/badge/JWT-HMAC--SHA256-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white" alt="JWT" />
+  <img src="https://img.shields.io/badge/Polly-Resilience-004880?style=for-the-badge" alt="Polly Http.Resilience" />
+  <img src="https://img.shields.io/badge/OpenAPI-9.0-6BA539?style=for-the-badge&logo=openapiinitiative&logoColor=white" alt="OpenAPI" />
+</p>
+<p>
+  <img src="https://img.shields.io/badge/SQL_Server-2022-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white" alt="SQL Server 2022" />
+  <img src="https://img.shields.io/badge/Qdrant-Vector_DB-DC244C?style=for-the-badge&logo=qdrant&logoColor=white" alt="Qdrant" />
+  <img src="https://img.shields.io/badge/Google_Gemini-Embeddings_%26_LLM-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Google Gemini" />
+  <img src="https://img.shields.io/badge/PdfPig-PDF_Parser-B91C1C?style=for-the-badge" alt="PdfPig" />
+  <img src="https://img.shields.io/badge/Mapster-Object_Mapping-1E293B?style=for-the-badge" alt="Mapster" />
+</p>
+<p>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
+  <img src="https://img.shields.io/badge/Oxlint-Linter-0F172A?style=for-the-badge" alt="Oxlint" />
+</p>
+<p>
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose" />
+  <img src="https://img.shields.io/badge/GitHub_Actions-CI-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions" />
+  <img src="https://img.shields.io/badge/xUnit-Testing-512BD4?style=for-the-badge" alt="xUnit" />
+  <img src="https://img.shields.io/badge/Playwright-E2E-2EAD33?style=for-the-badge&logo=playwright&logoColor=white" alt="Playwright" />
+</p>
+
 </div>
 
 ---
@@ -68,11 +99,11 @@ Para detalles de capas, flujo Saga y manejo de cancelaciones, consulta [docs/ARC
 
 ## 5. Stack Tecnológico
 
-- **Backend:** .NET 9.0, C# 13, ASP.NET Core Web API, Entity Framework Core 9, ASP.NET Core Identity, Mapster.
-- **Bases de Datos:** Microsoft SQL Server 2022, Qdrant Vector Database (`v1.13.4`).
-- **IA Generativa y Embeddings:** Google Gemini API (`gemini-embedding-001` con `outputDimensionality: 768`, `gemini-2.5-flash`).
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React.
-- **Infraestructura y Pruebas:** Docker, Docker Compose, xUnit, Moq, FluentAssertions, Microsoft.Playwright.
+- **Backend:** .NET 9.0, C# 13, ASP.NET Core Web API, Entity Framework Core 9, ASP.NET Core Identity, JWT Bearer (`HMAC-SHA256`), Polly (`Microsoft.Extensions.Http.Resilience`), Mapster, PdfPig, OpenAPI.
+- **Bases de Datos:** Microsoft SQL Server 2022, Qdrant Vector Database (`Qdrant.Client` gRPC).
+- **IA Generativa y Embeddings:** Google Gemini API (`gemini-embedding-001` con `outputDimensionality: 768`, `gemini-3.5-flash-lite`).
+- **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide React, Oxlint.
+- **Infraestructura y Pruebas:** Docker, Docker Compose, GitHub Actions CI, xUnit, Moq, FluentAssertions, Microsoft.Playwright.
 
 ---
 
@@ -96,8 +127,8 @@ enterprise-rag-system/
 │   └── Presentation/
 │       └── EnterpriseRag.WebApi/                # Controladores, Middlewares, RateLimiter, Program.cs
 ├── tests/
-│   ├── EnterpriseRag.UnitTests/                 # Pruebas unitarias, Identity real y Playwright (78 tests)
-│   └── EnterpriseRag.IntegrationTests/          # Pruebas reales SQL Server + Qdrant (6 tests)
+│   ├── EnterpriseRag.UnitTests/                 # Pruebas unitarias, Identity real y Playwright (118 tests)
+│   └── EnterpriseRag.IntegrationTests/          # Pruebas reales SQL Server + Qdrant (7 tests)
 ├── Dockerfile                                   # Build multi-stage .NET 9
 ├── docker-compose.yml                           # Orquestación sqlserver, qdrant y api
 └── .env.example                                 # Plantilla de variables de entorno sin secretos
