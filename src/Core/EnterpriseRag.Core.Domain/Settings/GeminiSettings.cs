@@ -7,5 +7,5 @@ public class GeminiSettings
     public string ApiKey { get; set; } = string.Empty;
     public string ModelId { get; set; } = "text-embedding-004";
     public int EmbeddingDimension { get; set; } = 768;
-    public string GenerationModelId { get; set; } = "gemini-1.5-flash";
+    public string GenerationModelId { get; set; } = "gemini-3.5-flash-lite";
 }

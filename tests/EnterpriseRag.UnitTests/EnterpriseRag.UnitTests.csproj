@@ -11,6 +11,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="FluentAssertions" Version="8.11.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.65.1" />
     <PackageReference Include="Moq" Version="4.21.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
@@ -23,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Domain\EnterpriseRag.Core.Domain.csproj" />
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.ExternalServices\EnterpriseRag.Infrastructure.ExternalServices.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.Identity\EnterpriseRag.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.VectorStore\EnterpriseRag.Infrastructure.VectorStore.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\EnterpriseRag.WebApi\EnterpriseRag.WebApi.csproj" />
   </ItemGroup>
 
 </Project>

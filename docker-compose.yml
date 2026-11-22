@@ -5,21 +5,74 @@ services:
     user: "0:0"
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+      - "MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:?Variable MSSQL_SA_PASSWORD es requerida}"
     ports:
       - "1433:1433"
     volumes:
       - sql_data:/var/opt/mssql/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -C || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.4
     container_name: enterprise-rag-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-rag-api
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=EnterpriseRagDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+      - ConnectionStrings__IdentityConnection=Server=sqlserver,1433;Database=EnterpriseRagIdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+      - QdrantSettings__Host=qdrant
+      - QdrantSettings__Port=6334
+      - QdrantSettings__ApiKey=${QdrantSettings__ApiKey:-}
+      - QdrantSettings__CollectionName=enterprise-documents
+      - QdrantSettings__VectorDimension=${QdrantSettings__VectorDimension:-768}
+      - FileStorage__Provider=${FileStorage__Provider:-Local}
+      - FileStorage__BasePath=/app/Storage/Uploads
+      - "GeminiSettings__ApiKey=${GeminiSettings__ApiKey:?Variable GeminiSettings__ApiKey es requerida}"
+      - GeminiSettings__ModelId=${GeminiSettings__ModelId:-gemini-embedding-001}
+      - GeminiSettings__EmbeddingDimension=768
+      - GeminiSettings__GenerationModelId=${GeminiSettings__GenerationModelId:-gemini-3.5-flash-lite}
+      - "JWTSettings__Key=${JWTSettings__Key:?Variable JWTSettings__Key es requerida}"
+      - JWTSettings__Issuer=${JWTSettings__Issuer:-EnterpriseRagApi}
+      - JWTSettings__Audience=${JWTSettings__Audience:-EnterpriseRagClient}
+      - JWTSettings__DurationInMinutes=${JWTSettings__DurationInMinutes:-60}
+    ports:
+      - "5235:8080"
+    volumes:
+      - uploads_data:/app/Storage/Uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   sql_data:
   qdrant_data:
+  uploads_data:

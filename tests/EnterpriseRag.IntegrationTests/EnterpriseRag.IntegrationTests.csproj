@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="8.11.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Domain\EnterpriseRag.Core.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.Persistence\EnterpriseRag.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.VectorStore\EnterpriseRag.Infrastructure.VectorStore.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\EnterpriseRag.WebApi\EnterpriseRag.WebApi.csproj" />
+  </ItemGroup>
+
+</Project>

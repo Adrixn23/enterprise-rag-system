@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Chat;
 using EnterpriseRag.Core.Application.Contracts.GenerativeAi;
 using EnterpriseRag.Core.Application.Contracts.Search;
 using EnterpriseRag.Core.Application.DTOs.Chat;
 using EnterpriseRag.Core.Application.DTOs.Search;
+using EnterpriseRag.Core.Domain.Observability;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.Chat;
 using Microsoft.Extensions.Logging;
@@ -83,10 +85,20 @@ public class ChatService : IChatService
         var userPrompt = BuildUserPromptWithContext(trimmedMessage, relevantChunks);
 
         // 4. Generation: Síntesis de respuesta con Gemini LLM
-        var generationResult = await _generativeAiService.GenerateResponseAsync(
-            systemInstruction,
-            userPrompt,
-            cancellationToken);
+        using var generationActivity = RagTelemetry.ActivitySource.StartActivity("rag.generation");
+        var swGeneration = Stopwatch.StartNew();
+        Result<string> generationResult;
+        try
+        {
+            generationResult = await _generativeAiService.GenerateResponseAsync(
+                systemInstruction,
+                userPrompt,
+                cancellationToken);
+        }
+        finally
+        {
+            RagTelemetry.GenerationDurationMs.Record(swGeneration.Elapsed.TotalMilliseconds);
+        }
 
         if (generationResult.IsFailure || generationResult.Value is null)
         {
@@ -101,7 +113,10 @@ public class ChatService : IChatService
             Sources = relevantChunks.Select(c => new ChatSourceDto
             {
                 DocumentId = c.DocumentId,
-                DocumentFileName = c.DocumentFileName ?? "Documento",
+                DocumentFileName = string.IsNullOrWhiteSpace(c.DocumentFileName) ||
+                                   c.DocumentFileName.Equals("Desconocido", StringComparison.OrdinalIgnoreCase)
+                    ? "Documento"
+                    : c.DocumentFileName,
                 ChunkIndex = c.ChunkIndex,
                 Content = c.Content,
                 RelevanceScore = c.Score

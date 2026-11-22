@@ -25,4 +25,7 @@ public static class DocumentErrors
 
     public static Error VectorDeletionFailed(string details) =>
         new("Document.VectorDeletionFailed", $"No se pudieron eliminar los vectores asociados en la base de datos vectorial: {details}");
+
+    public static Error DuplicateDocument =>
+        new("Document.Conflict", "Ya existe un documento con el mismo contenido registrado para esta organización.");
 }

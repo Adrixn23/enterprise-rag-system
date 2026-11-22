@@ -3,6 +3,7 @@ namespace EnterpriseRag.Infrastructure.Persistence.Context;
 using System.Reflection;
 using EnterpriseRag.Core.Domain.Entities.Base;
 using EnterpriseRag.Core.Domain.Entities.Documents;
+using EnterpriseRag.Core.Domain.Entities.Outbox;
 using Microsoft.EntityFrameworkCore;
 
 public class ApplicationDbContext : DbContext
@@ -13,6 +14,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<DocumentChunk> DocumentChunks => Set<DocumentChunk>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
