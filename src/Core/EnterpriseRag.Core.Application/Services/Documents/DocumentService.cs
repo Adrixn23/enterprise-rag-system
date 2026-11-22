@@ -287,9 +287,10 @@ public class DocumentService : IDocumentService
 
             var vectors = embeddingResult.Value!;
 
-            // 5. Construccion de la entidad Document principal
+            // 5. Construccion de la entidad Document principal (mismo criterio de identidad que EnqueueDocumentAsync)
             var document = new Document
             {
+                Id = Guid.NewGuid(),
                 FileName = request.FileName,
                 ContentType = request.ContentType,
                 FileSizeBytes = request.FileSizeBytes,

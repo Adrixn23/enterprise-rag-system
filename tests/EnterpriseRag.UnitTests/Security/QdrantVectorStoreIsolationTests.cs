@@ -36,6 +36,54 @@ public class QdrantVectorStoreIsolationTests
     }
 
     [Fact]
+    public async Task UpsertPointAsync_WhenTenantIdIsEmpty_ShouldReturnInvalidTenantId_WithoutCallingQdrant()
+    {
+        var client = new QdrantClient("localhost", 6334);
+        var sut = new QdrantVectorStoreService(client, Options.Create(_settings), new Mock<ILogger<QdrantVectorStoreService>>().Object);
+        var points = new[]
+        {
+            new EnterpriseRag.Core.Application.DTOs.Vector.VectorPointDto
+            {
+                PointId = Guid.NewGuid(),
+                TenantId = Guid.Empty,
+                DocumentId = Guid.NewGuid(),
+                ChunkIndex = 0,
+                Content = "test",
+                Vector = new ReadOnlyMemory<float>(new float[768])
+            }
+        };
+
+        var result = await sut.UpsertPointAsync(points);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(VectorStoreErrors.InvalidTenantId);
+    }
+
+    [Fact]
+    public async Task UpsertPointAsync_WhenDocumentIdIsEmpty_ShouldReturnInvalidDocumentId_WithoutCallingQdrant()
+    {
+        var client = new QdrantClient("localhost", 6334);
+        var sut = new QdrantVectorStoreService(client, Options.Create(_settings), new Mock<ILogger<QdrantVectorStoreService>>().Object);
+        var points = new[]
+        {
+            new EnterpriseRag.Core.Application.DTOs.Vector.VectorPointDto
+            {
+                PointId = Guid.NewGuid(),
+                TenantId = Guid.NewGuid(),
+                DocumentId = Guid.Empty,
+                ChunkIndex = 0,
+                Content = "test",
+                Vector = new ReadOnlyMemory<float>(new float[768])
+            }
+        };
+
+        var result = await sut.UpsertPointAsync(points);
+
+        result.IsFailure.Should().BeTrue();
+        result.Errors.Should().Contain(VectorStoreErrors.InvalidDocumentId);
+    }
+
+    [Fact]
     public async Task DeleteByDocumentAsync_WhenTenantIdIsEmpty_ShouldReturnInvalidTenantId_WithoutCallingQdrant()
     {
         // Arrange

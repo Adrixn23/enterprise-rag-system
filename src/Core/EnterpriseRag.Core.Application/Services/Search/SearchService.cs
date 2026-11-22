@@ -100,25 +100,48 @@ public class SearchService : ISearchService
                 return Result<List<SearchResultDto>>.Success([]);
             }
 
-            // 5. Enriquecer los resultados en lote (Batch Query - Cero consultas N+1)
-            var documentIds = filteredPoints.Select(p => p.DocumentId).Distinct().ToList();
-            var documentNames = await _documentRepository.GetFileNamesByIdsAsync(documentIds, tenantId, cancellationToken);
+            // 5. Enriquecer los resultados en lote (Batch Query - Cero consultas N+1) y descartar huérfanos/eliminados
+            var documentIds = filteredPoints
+                .Select(p => p.DocumentId)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
 
-            var results = filteredPoints.Select(p =>
+            var documentNames = documentIds.Count > 0
+                ? await _documentRepository.GetFileNamesByIdsAsync(documentIds, tenantId, cancellationToken)
+                : new Dictionary<Guid, string>();
+
+            var results = new List<SearchResultDto>(filteredPoints.Count);
+            var excludedOrphanCount = 0;
+
+            foreach (var p in filteredPoints)
             {
-                var hasFileName = documentNames.TryGetValue(p.DocumentId, out var fileName)
-                    && !string.IsNullOrWhiteSpace(fileName);
+                if (p.DocumentId == Guid.Empty ||
+                    !documentNames.TryGetValue(p.DocumentId, out var fileName) ||
+                    string.IsNullOrWhiteSpace(fileName))
+                {
+                    excludedOrphanCount++;
+                    continue;
+                }
 
-                return new SearchResultDto
+                results.Add(new SearchResultDto
                 {
                     PointId = p.PointId,
                     DocumentId = p.DocumentId,
-                    DocumentFileName = hasFileName ? fileName! : "Documento",
+                    DocumentFileName = fileName,
                     ChunkIndex = p.ChunkIndex,
                     Content = p.Content ?? string.Empty,
                     Score = p.Score
-                };
-            }).ToList();
+                });
+            }
+
+            if (excludedOrphanCount > 0)
+            {
+                _logger.LogWarning(
+                    "Se excluyeron {Count} puntos vectoriales huérfanos o de documentos eliminados para TenantId: {TenantId}.",
+                    excludedOrphanCount,
+                    tenantId);
+            }
 
             return Result<List<SearchResultDto>>.Success(results);
         }

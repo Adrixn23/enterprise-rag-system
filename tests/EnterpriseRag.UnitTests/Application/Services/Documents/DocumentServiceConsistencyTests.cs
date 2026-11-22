@@ -114,6 +114,61 @@ public class DocumentServiceConsistencyTests
     }
 
     [Fact]
+    public async Task UploadDocumentAsync_ShouldAssignConsistentNonEmptyDocumentId_ForQdrantAndSql()
+    {
+        var tenantId = Guid.NewGuid();
+        var storagePath = "docs/consistent.pdf";
+        var validPdfBytes = "%PDF-1.7\nConsistent ID test"u8.ToArray();
+
+        _textExtractorServiceMock.Setup(x => x.CanExtract("application/pdf")).Returns(true);
+        _textExtractorServiceMock.Setup(x => x.IsValidFileContent(It.IsAny<Stream>(), "application/pdf")).Returns(true);
+        _fileStorageServiceMock
+            .Setup(x => x.SaveFileAsync(It.IsAny<Stream>(), "consistent.pdf", tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storagePath);
+        _textExtractorServiceMock
+            .Setup(x => x.ExtractTextAsync(It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Texto de prueba");
+        _textChunkerServiceMock
+            .Setup(x => x.ChunkText(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(["Chunk 1"]);
+        _embeddingServiceMock
+            .Setup(x => x.GenerateEmbeddingsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<IReadOnlyList<ReadOnlyMemory<float>>>.Success([new ReadOnlyMemory<float>(new float[768])]));
+
+        List<VectorPointDto>? capturedPoints = null;
+        _vectorStoreServiceMock
+            .Setup(x => x.UpsertPointAsync(It.IsAny<IEnumerable<VectorPointDto>>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<VectorPointDto>, CancellationToken>((pts, _) => capturedPoints = pts.ToList())
+            .ReturnsAsync(Result.Success());
+
+        Document? capturedDocument = null;
+        _documentRepositoryMock
+            .Setup(x => x.AddAsync(It.IsAny<Document>(), It.IsAny<CancellationToken>()))
+            .Callback<Document, CancellationToken>((doc, _) => capturedDocument = doc)
+            .ReturnsAsync((Document doc, CancellationToken _) => doc);
+
+        var request = new UploadDocumentRequestDto
+        {
+            FileName = "consistent.pdf",
+            ContentType = "application/pdf",
+            FileSizeBytes = validPdfBytes.Length,
+            OpenReadStream = () => new MemoryStream(validPdfBytes),
+            TenantId = tenantId
+        };
+
+        var result = await _sut.UploadDocumentAsync(request);
+
+        result.IsSuccess.Should().BeTrue();
+        capturedPoints.Should().NotBeNull().And.HaveCount(1);
+        capturedDocument.Should().NotBeNull();
+
+        capturedDocument!.Id.Should().NotBe(Guid.Empty);
+        capturedPoints![0].DocumentId.Should().Be(capturedDocument.Id);
+        capturedDocument.Chunks.Should().ContainSingle(c => c.DocumentId == capturedDocument.Id);
+        result.Value!.Id.Should().Be(capturedDocument.Id);
+    }
+
+    [Fact]
     public async Task DeleteDocumentAsync_WhenQdrantDeletionFails_ShouldAbortAndNeverDeleteFromSqlOrDisk()
     {
         var documentId = Guid.NewGuid();

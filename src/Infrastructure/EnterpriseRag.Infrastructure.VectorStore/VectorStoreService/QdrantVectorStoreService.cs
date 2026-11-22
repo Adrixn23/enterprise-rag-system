@@ -40,6 +40,12 @@ public class QdrantVectorStoreService : IVectorStoreService
         if (pointsList is null || pointsList.Count == 0)
             return Result.Failure(VectorStoreErrors.EmptyPoints);
 
+        if (pointsList.Any(p => p.TenantId == Guid.Empty))
+            return Result.Failure(VectorStoreErrors.InvalidTenantId);
+
+        if (pointsList.Any(p => p.DocumentId == Guid.Empty))
+            return Result.Failure(VectorStoreErrors.InvalidDocumentId);
+
         using var activity = RagTelemetry.ActivitySource.StartActivity("qdrant.upsert");
         var sw = Stopwatch.StartNew();
 

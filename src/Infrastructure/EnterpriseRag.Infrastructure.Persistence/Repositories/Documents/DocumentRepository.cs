@@ -172,7 +172,7 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
         {
             return await _dbSet
                 .AsNoTracking()
-                .Where(d => d.TenantId == tenantId && idList.Contains(d.Id))
+                .Where(d => d.TenantId == tenantId && !d.IsDeleted && idList.Contains(d.Id))
                 .Select(d => new { d.Id, d.FileName })
                 .ToDictionaryAsync(d => d.Id, d => d.FileName, cancellationToken);
         }

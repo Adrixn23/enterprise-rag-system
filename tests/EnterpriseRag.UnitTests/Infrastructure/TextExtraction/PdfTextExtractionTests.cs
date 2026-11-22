@@ -111,6 +111,26 @@ public class PdfTextExtractionTests
         extracted.Should().Be(expected);
     }
 
+    [Fact]
+    public void NormalizePdfSpacingDiacritics_WhenTextHasOt1SpacingSequences_ShouldNormalizeSafely()
+    {
+        const string input = "Rep\u00B4ublica Dominicana dise\u02DCnar as\u00B4\u0131 ling\u00A8u\u00B4istica";
+
+        var normalized = TextExtractorService.NormalizePdfSpacingDiacritics(input);
+
+        normalized.Should().Be("República Dominicana diseñar así lingüística");
+    }
+
+    [Fact]
+    public void NormalizePdfSpacingDiacritics_WhenTextHasValidUtf8OrUnrelatedMarkers_ShouldPreserveUntouched()
+    {
+        const string input = "Español • café • `código` • \u00B4x • \u02DCz • EntityFrameworkCore";
+
+        var normalized = TextExtractorService.NormalizePdfSpacingDiacritics(input);
+
+        normalized.Should().Be(input);
+    }
+
     private sealed class NonSeekableReadStream(byte[] buffer) : MemoryStream(buffer)
     {
         public override bool CanSeek => false;

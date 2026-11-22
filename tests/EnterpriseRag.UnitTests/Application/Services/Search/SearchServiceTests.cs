@@ -138,10 +138,11 @@ public class SearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_WhenDocumentFileNameIsMissing_ShouldUseNeutralFallbackInsteadOfDesconocido()
+    public async Task SearchAsync_WhenDocumentIsMissingOrDeletedInSql_ShouldExcludeOrphanPointsAndReturnOnlyValidOnes()
     {
         var tenantId = Guid.NewGuid();
-        var documentId = Guid.NewGuid();
+        var validDocId = Guid.NewGuid();
+        var deletedOrMissingDocId = Guid.NewGuid();
         var request = new SearchQueryRequestDto
         {
             Query = "politica de seguridad",
@@ -161,22 +162,45 @@ public class SearchServiceTests
                 new VectorSearchResultDto
                 {
                     PointId = Guid.NewGuid(),
-                    DocumentId = documentId,
+                    DocumentId = Guid.Empty,
                     ChunkIndex = 0,
-                    Content = "Contenido del documento.",
+                    Content = "Punto huérfano con Guid.Empty.",
+                    Score = 0.90f
+                },
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = deletedOrMissingDocId,
+                    ChunkIndex = 0,
+                    Content = "Punto de documento eliminado en SQL.",
+                    Score = 0.85f
+                },
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = validDocId,
+                    ChunkIndex = 0,
+                    Content = "Punto válido activo.",
                     Score = 0.80f
                 }
             ]));
 
         _documentRepositoryMock
-            .Setup(x => x.GetFileNamesByIdsAsync(It.IsAny<IEnumerable<Guid>>(), tenantId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<Guid, string>());
+            .Setup(x => x.GetFileNamesByIdsAsync(
+                It.Is<IEnumerable<Guid>>(ids => !ids.Contains(Guid.Empty) && ids.Contains(validDocId) && ids.Contains(deletedOrMissingDocId)),
+                tenantId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { { validDocId, "Politica_Activa.pdf" } });
 
         var result = await _sut.SearchAsync(request, tenantId);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().HaveCount(1);
-        result.Value![0].DocumentFileName.Should().Be("Documento");
-        result.Value[0].DocumentFileName.Should().NotBe("Desconocido");
+        result.Value![0].DocumentId.Should().Be(validDocId);
+        result.Value[0].DocumentFileName.Should().Be("Politica_Activa.pdf");
+
+        _documentRepositoryMock.Verify(
+            x => x.GetFileNamesByIdsAsync(It.IsAny<IEnumerable<Guid>>(), tenantId, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }
