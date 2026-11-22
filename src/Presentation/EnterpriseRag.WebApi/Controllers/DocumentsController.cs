@@ -1,6 +1,7 @@
 namespace EnterpriseRag.WebApi.Controllers;
 
 using EnterpriseRag.Core.Application.Contracts.Documents;
+using EnterpriseRag.Core.Application.DTOs.Common;
 using EnterpriseRag.Core.Application.DTOs.Documents;
 using EnterpriseRag.WebApi.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +23,7 @@ public class DocumentsController : ControllerBase
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(50 * 1024 * 1024)]
-    [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Upload(
@@ -46,12 +47,15 @@ public class DocumentsController : ControllerBase
 
         var request = new UploadDocumentRequestDto
         {
-            File = file,
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            FileSizeBytes = file.Length,
+            OpenReadStream = file.OpenReadStream,
             TenantId = tenantId
         };
 
-        var result = await _documentService.UploadDocumentAsync(request, cancellationToken);
-        return result.ToActionResult(doc => CreatedAtAction(nameof(GetById), new { id = doc.Id }, doc));
+        var result = await _documentService.EnqueueDocumentAsync(request, cancellationToken);
+        return result.ToActionResult(doc => AcceptedAtAction(nameof(GetById), new { id = doc.Id }, doc));
     }
 
     [HttpGet("{id:guid}")]
@@ -70,16 +74,19 @@ public class DocumentsController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResponseDto<DocumentResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetByTenant(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetByTenant(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
         if (!TryResolveTenantId(out var tenantId))
         {
             return Unauthorized();
         }
 
-        var result = await _documentService.GetByTenantAsync(tenantId, cancellationToken);
+        var result = await _documentService.GetPagedByTenantAsync(tenantId, page, pageSize, cancellationToken);
         return result.ToActionResult();
     }
 

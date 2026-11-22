@@ -9,6 +9,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -112,7 +113,7 @@ public class IdentityTokenAndResendConcurrencyTests
         envMock.Setup(e => e.EnvironmentName).Returns(Environments.Production);
 
         var emailSenderMock = new Mock<IEmailSenderService>();
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var distributedCache = new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
         var loggerMock = new Mock<ILogger<AccountService>>();
 
         var signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
@@ -128,7 +129,7 @@ public class IdentityTokenAndResendConcurrencyTests
             emailOptions,
             envMock.Object,
             emailSenderMock.Object,
-            memoryCache,
+            distributedCache,
             loggerMock.Object);
 
         return (userManager, accountService, emailSenderMock);

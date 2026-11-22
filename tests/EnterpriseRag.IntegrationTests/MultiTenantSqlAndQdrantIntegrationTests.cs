@@ -15,6 +15,7 @@ using Xunit;
 
 namespace EnterpriseRag.IntegrationTests;
 
+[Collection("SqlAndQdrantIntegration")]
 public sealed class MultiTenantSqlAndQdrantIntegrationTests : IAsyncLifetime
 {
     private const string ExpectedDatabaseName = "EnterpriseRagIntegrationTestsDb";

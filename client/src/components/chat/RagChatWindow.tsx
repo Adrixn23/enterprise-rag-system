@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Sparkles, Send, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Bot, Sparkles, Send, ShieldCheck, AlertCircle, RotateCcw } from 'lucide-react';
 import { api } from '../../services/api';
 import type { ChatMessage } from '../../types/api';
 
@@ -33,8 +33,24 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
   }));
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [failedQuery, setFailedQuery] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!chatLoading) {
+      setElapsedMs(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedAt);
+    }, 200);
+
+    return () => window.clearInterval(timer);
+  }, [chatLoading]);
   const activeUserIdRef = useRef<string>(userId);
   activeUserIdRef.current = userId;
 
@@ -45,6 +61,7 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
       messages: loadMessagesForUser(userId),
     });
     setChatError(null);
+    setFailedQuery(null);
     setChatInput('');
     setChatLoading(false);
   }, [userId]);
@@ -67,24 +84,50 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
 
   const chatMessages = chatState.ownerUserId === userId ? chatState.messages : [];
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
+  const formatFriendlyError = (rawMessage: string): string => {
+    const trimmed = rawMessage.trim();
+    if (!trimmed) {
+      return 'Ocurrió un error temporal al consultar el asistente. Por favor, intenta nuevamente.';
+    }
+    if (trimmed.includes('{') && (trimmed.includes('UNAVAILABLE') || trimmed.includes('503'))) {
+      return 'El servicio de IA está experimentando alta demanda temporal. Puedes reintentar tu consulta en unos momentos.';
+    }
+    if (trimmed.includes('{')) {
+      return 'El proveedor de IA devolvió un error temporal al procesar la solicitud. Intenta nuevamente.';
+    }
+    return trimmed;
+  };
+
+  const executeQuery = async (queryText: string, isRetry: boolean) => {
+    if (!queryText.trim() || chatLoading) return;
 
     const requestUserId = userId;
-    const userQuery = chatInput.trim();
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: userQuery,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+    const userQuery = queryText.trim();
 
-    setChatState(prev => ({
-      ownerUserId: requestUserId,
-      messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), userMsg],
-    }));
-    setChatInput('');
+    if (!isRetry) {
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: userQuery,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setChatState(prev => ({
+        ownerUserId: requestUserId,
+        messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), userMsg],
+      }));
+    } else {
+      // Al reintentar, elimina la burbuja de error anterior sin duplicar el mensaje del usuario
+      setChatState(prev => {
+        if (prev.ownerUserId !== requestUserId) return prev;
+        const msgs = [...prev.messages];
+        if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant' && msgs[msgs.length - 1].content.startsWith('Error al procesar la respuesta:')) {
+          msgs.pop();
+        }
+        return { ownerUserId: requestUserId, messages: msgs };
+      });
+    }
+
     setChatLoading(true);
     setChatError(null);
 
@@ -104,15 +147,20 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
         ownerUserId: requestUserId,
         messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), assistantMsg],
       }));
+      setChatInput('');
+      setFailedQuery(null);
     } catch (err: unknown) {
       if (activeUserIdRef.current !== requestUserId) return;
 
-      const msg = err instanceof Error ? err.message : 'Error desconocido al procesar respuesta';
-      setChatError(msg);
+      const rawMsg = err instanceof Error ? err.message : 'Error desconocido al procesar respuesta';
+      const friendlyMsg = formatFriendlyError(rawMsg);
+      setChatError(friendlyMsg);
+      setFailedQuery(userQuery);
+
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Error al procesar la respuesta: ${msg}`,
+        content: `Error al procesar la respuesta: ${friendlyMsg}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setChatState(prev => ({
@@ -126,8 +174,20 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
     }
   };
 
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeQuery(chatInput, false);
+  };
+
+  const handleRetry = async () => {
+    if (!failedQuery || chatLoading) return;
+    await executeQuery(failedQuery, true);
+  };
+
   const handleClearChat = () => {
     setChatState({ ownerUserId: userId, messages: [] });
+    setChatError(null);
+    setFailedQuery(null);
     localStorage.removeItem(chatStorageKey);
   };
 
@@ -182,12 +242,17 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
                       <ShieldCheck className="w-3 h-3" /> Fuentes Consultadas ({msg.sources.length}):
                     </p>
                     <div className="space-y-1">
-                      {msg.sources.map((s, i) => (
-                        <div key={i} className="text-[10px] text-slate-400 bg-slate-900/50 p-1.5 rounded border border-slate-800">
-                          <span className="font-medium text-slate-300">{s.fileName}</span> (Score: {(s.score * 100).toFixed(0)}%)
-                          <p className="italic text-slate-400 text-[9px] mt-0.5 m-0 line-clamp-2">"{s.snippet}"</p>
-                        </div>
-                      ))}
+                      {msg.sources.map((s, i) => {
+                        const fileName = s.documentFileName || s.fileName || 'Documento';
+                        const rawScore = s.relevanceScore ?? s.score ?? 0;
+                        const snippet = s.content || s.snippet || '';
+                        return (
+                          <div key={i} className="text-[10px] text-slate-400 bg-slate-900/50 p-1.5 rounded border border-slate-800">
+                            <span className="font-medium text-slate-300">{fileName}</span> (Score: {(rawScore * 100).toFixed(0)}%)
+                            {snippet && <p className="italic text-slate-400 text-[9px] mt-0.5 m-0 line-clamp-2">"{snippet}"</p>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -197,21 +262,70 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
           ))
         )}
 
-        {chatLoading && (
-          <div className="flex flex-col items-start">
-            <div className="bg-[#151a27] border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 flex items-center gap-2">
-              <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              <span>Consultando índice vectorial y sintetizando respuesta...</span>
+        {chatLoading && (() => {
+          const seconds = elapsedMs / 1000;
+          const stage = seconds < 1.5 ? 1 : seconds < 3.5 ? 2 : 3;
+          const progress =
+            stage === 1
+              ? Math.min(28, 10 + (seconds / 1.5) * 18)
+              : stage === 2
+                ? Math.min(58, 28 + ((seconds - 1.5) / 2) * 30)
+                : Math.min(93, 58 + (1 - Math.exp(-(seconds - 3.5) / 12)) * 35);
+
+          const stageLabel =
+            stage === 1
+              ? '1/3 · Vectorizando consulta (Embeddings)...'
+              : stage === 2
+                ? '2/3 · Buscando fragmentos relevantes en Qdrant...'
+                : '3/3 · Sintetizando respuesta con Gemini...';
+
+          return (
+            <div className="flex flex-col items-start">
+              <div className="w-full max-w-md bg-[#151a27] border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2.5 shadow-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span className="font-medium">{stageLabel}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 shrink-0">{seconds.toFixed(1)}s</span>
+                </div>
+
+                <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-400 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${progress.toFixed(0)}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span className={stage >= 1 ? 'text-indigo-300 font-medium' : ''}>1. Embeddings</span>
+                  <span className={stage >= 2 ? 'text-indigo-300 font-medium' : ''}>2. Qdrant</span>
+                  <span className={stage >= 3 ? 'text-indigo-300 font-medium' : ''}>3. Síntesis LLM</span>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div ref={messagesEndRef} />
       </div>
 
       {chatError && (
-        <div className="px-4 py-2 bg-red-950/40 border-t border-red-800/60 text-red-300 text-[11px] flex items-center gap-2">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>{chatError}</span>
+        <div className="px-4 py-2.5 bg-red-950/40 border-t border-red-800/60 text-red-300 text-[11px] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{chatError}</span>
+          </div>
+          {failedQuery && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={chatLoading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-900/60 hover:bg-red-800/80 text-red-100 text-[10px] font-medium transition-colors shrink-0 disabled:opacity-50"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reintentar
+            </button>
+          )}
         </div>
       )}
 

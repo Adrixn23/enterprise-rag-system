@@ -16,6 +16,16 @@ export interface DocumentItem {
   createdAt: string;
 }
 
+export interface PagedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export interface SearchResultChunk {
   documentId: string;
   fileName: string;
@@ -26,9 +36,13 @@ export interface SearchResultChunk {
 
 export interface ChatSource {
   documentId: string;
-  fileName: string;
-  score: number;
-  snippet: string;
+  documentFileName?: string;
+  fileName?: string;
+  chunkIndex?: number;
+  relevanceScore?: number;
+  score?: number;
+  content?: string;
+  snippet?: string;
 }
 
 export interface ChatMessage {

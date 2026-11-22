@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 public class ExceptionHandlingMiddleware
 {
+    private const string CorrelationIdHeader = "X-Correlation-Id";
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
@@ -17,13 +18,25 @@ public class ExceptionHandlingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        var incomingCorrelationId = context.Request.Headers[CorrelationIdHeader].FirstOrDefault();
+        var traceId = !string.IsNullOrWhiteSpace(incomingCorrelationId) && incomingCorrelationId.Length <= 128
+            ? incomingCorrelationId.Trim()
+            : Activity.Current?.Id ?? context.TraceIdentifier;
+
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers[CorrelationIdHeader] = traceId;
+            return Task.CompletedTask;
+        });
+
+        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["TraceId"] = traceId });
+
         try
         {
             await _next(context);
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
             _logger.LogInformation("La solicitud HTTP fue cancelada por el cliente. TraceId: {TraceId}", traceId);
 
             // No escribir en la respuesta si el cliente ya cerró el socket o si las cabeceras ya se enviaron
@@ -34,7 +47,6 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
             _logger.LogError(ex, "Excepción no controlada capturada por el middleware global. TraceId: {TraceId}", traceId);
 
             if (!context.Response.HasStarted)

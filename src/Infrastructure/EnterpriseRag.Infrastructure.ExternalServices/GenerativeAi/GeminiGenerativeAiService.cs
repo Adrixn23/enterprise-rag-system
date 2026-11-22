@@ -1,6 +1,9 @@
+using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using EnterpriseRag.Core.Application.Contracts.GenerativeAi;
+using EnterpriseRag.Core.Domain.Observability;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.Chat;
 using EnterpriseRag.Core.Domain.Settings;
@@ -35,9 +38,11 @@ public class GeminiGenerativeAiService : IGenerativeAiService
             return Result<string>.Failure(ChatErrors.EmptyMessage);
         }
 
+        using var activity = RagTelemetry.ActivitySource.StartActivity("gemini.generation");
+
         try
         {
-            var endpoint = $"v1beta/models/{_settings.GenerationModelId}:generateContent?key={_settings.ApiKey}";
+            var endpoint = $"v1beta/models/{_settings.GenerationModelId}:generateContent";
 
             var requestBody = new GeminiGenerateRequest
             {
@@ -58,17 +63,36 @@ public class GeminiGenerativeAiService : IGenerativeAiService
                 GenerationConfig = new GeminiGenerationConfig
                 {
                     Temperature = 0.2f, // Temperatura baja para evitar alucinaciones en RAG corporativo
-                    MaxOutputTokens = 2048
+                    MaxOutputTokens = 2048,
+                    ThinkingConfig = _settings.GenerationModelId.StartsWith("gemini-3", StringComparison.OrdinalIgnoreCase)
+                        && !_settings.GenerationModelId.Contains("-lite", StringComparison.OrdinalIgnoreCase)
+                        ? new GeminiThinkingConfig { ThinkingLevel = "LOW" }
+                        : null
                 }
             };
 
-            var response = await _httpClient.PostAsJsonAsync(endpoint, requestBody, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = JsonContent.Create(requestBody)
+            };
+            request.Headers.TryAddWithoutValidation("x-goog-api-key", _settings.ApiKey);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                var errorDetails = await response.Content.ReadAsStringAsync(cancellationToken);
+                var errorDetails = RedactApiKey(await response.Content.ReadAsStringAsync(cancellationToken));
                 _logger.LogError("Error en Gemini Generation API ({StatusCode}): {Details}", response.StatusCode, errorDetails);
-                return Result<string>.Failure(ChatErrors.GenerationFailed($"Status {response.StatusCode}: {errorDetails}"));
+                RagTelemetry.ExternalErrors.Add(1, new KeyValuePair<string, object?>("dependency", "gemini"), new KeyValuePair<string, object?>("operation", "generate"));
+
+                return response.StatusCode switch
+                {
+                    HttpStatusCode.ServiceUnavailable or HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout =>
+                        Result<string>.Failure(ChatErrors.ServiceUnavailable),
+                    HttpStatusCode.TooManyRequests =>
+                        Result<string>.Failure(ChatErrors.RateLimited),
+                    _ => Result<string>.Failure(ChatErrors.GenerationFailed($"El proveedor de IA respondió con estado {(int)response.StatusCode}."))
+                };
             }
 
             var result = await response.Content.ReadFromJsonAsync<GeminiGenerateResponse>(cancellationToken: cancellationToken);
@@ -102,9 +126,18 @@ public class GeminiGenerativeAiService : IGenerativeAiService
         }
         catch (Exception ex)
         {
+            var safeMessage = RedactApiKey(ex.Message);
             _logger.LogError(ex, "Excepcion inesperada al comunicarse con Gemini Generation API.");
-            return Result<string>.Failure(ChatErrors.GenerationFailed(ex.Message));
+            return Result<string>.Failure(ChatErrors.GenerationFailed(safeMessage));
         }
+    }
+
+    private string RedactApiKey(string? message)
+    {
+        if (string.IsNullOrEmpty(message) || string.IsNullOrWhiteSpace(_settings.ApiKey))
+            return message ?? string.Empty;
+
+        return message.Replace(_settings.ApiKey, "[REDACTED]", StringComparison.Ordinal);
     }
 
     // --- Modelos DTO internos para la API REST de Gemini generateContent ---
@@ -145,6 +178,16 @@ public class GeminiGenerativeAiService : IGenerativeAiService
 
         [JsonPropertyName("maxOutputTokens")]
         public int MaxOutputTokens { get; set; } = 2048;
+
+        [JsonPropertyName("thinkingConfig")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public GeminiThinkingConfig? ThinkingConfig { get; set; }
+    }
+
+    private sealed class GeminiThinkingConfig
+    {
+        [JsonPropertyName("thinkingLevel")]
+        public string ThinkingLevel { get; set; } = "LOW";
     }
 
     private sealed class GeminiGenerateResponse

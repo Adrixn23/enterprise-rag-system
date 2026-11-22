@@ -19,8 +19,8 @@ export function App() {
   const fetchDocs = useCallback(async () => {
     try {
       setDocsLoading(true);
-      const docs = await api.getDocuments();
-      setDocuments(docs);
+      const paged = await api.getDocuments(1, 50);
+      setDocuments(paged.items);
     } catch (e: any) {
       console.error('Error fetching documents:', e);
     } finally {
@@ -35,6 +35,19 @@ export function App() {
       setDocuments([]);
     }
   }, [isAuthenticated, fetchDocs]);
+
+  // Polling ligero mientras existan documentos en cola o procesamiento asíncrono
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const hasActiveJobs = documents.some(d => d.status === 'Pending' || d.status === 'Processing');
+    if (!hasActiveJobs) return;
+
+    const timer = window.setInterval(() => {
+      void fetchDocs();
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated, documents, fetchDocs]);
 
   const handleFileUpload = async (file: File) => {
     await api.uploadDocument(file);

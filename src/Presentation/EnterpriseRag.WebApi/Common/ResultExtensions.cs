@@ -45,6 +45,7 @@ public static class ResultExtensions
                     || c.EndsWith(".Unexpected", StringComparison.OrdinalIgnoreCase)
                     || c.EndsWith(".InconsistentUserState", StringComparison.OrdinalIgnoreCase)
                     || c.StartsWith("Server.", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status500InternalServerError,
+            var c when c.EndsWith(".RateLimited", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status429TooManyRequests,
             var c when c.EndsWith(".ServiceUnavailable", StringComparison.OrdinalIgnoreCase) 
                     || c.EndsWith(".ExternalServiceError", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest
@@ -64,7 +65,9 @@ public static class ResultExtensions
             StatusCodes.Status403Forbidden => new ObjectResult(problemDetails) { StatusCode = StatusCodes.Status403Forbidden },
             StatusCodes.Status409Conflict => new ConflictObjectResult(problemDetails),
             StatusCodes.Status423Locked => new ObjectResult(problemDetails) { StatusCode = StatusCodes.Status423Locked },
+            StatusCodes.Status429TooManyRequests => new ObjectResult(problemDetails) { StatusCode = StatusCodes.Status429TooManyRequests },
             StatusCodes.Status500InternalServerError => new ObjectResult(problemDetails) { StatusCode = StatusCodes.Status500InternalServerError },
+            StatusCodes.Status503ServiceUnavailable => new ObjectResult(problemDetails) { StatusCode = StatusCodes.Status503ServiceUnavailable },
             _ => new BadRequestObjectResult(problemDetails)
         };
     }

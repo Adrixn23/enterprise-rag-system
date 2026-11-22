@@ -1,4 +1,4 @@
-import type { UserProfile, DocumentItem, SearchResultChunk, ChatResponse } from '../types/api';
+import type { UserProfile, DocumentItem, PagedResponse, SearchResultChunk, ChatResponse } from '../types/api';
 
 const API_BASE = '/api/v1';
 
@@ -84,11 +84,11 @@ export const api = {
   },
 
   // Documentos
-  async getDocuments(): Promise<DocumentItem[]> {
-    const res = await fetch(`${API_BASE}/documents`, {
+  async getDocuments(page = 1, pageSize = 20): Promise<PagedResponse<DocumentItem>> {
+    const res = await fetch(`${API_BASE}/documents?page=${page}&pageSize=${pageSize}`, {
       headers: { ...getAuthHeader() },
     });
-    return handleResponse<DocumentItem[]>(res);
+    return handleResponse<PagedResponse<DocumentItem>>(res);
   },
 
   async uploadDocument(file: File): Promise<DocumentItem> {
@@ -120,7 +120,7 @@ export const api = {
         'Content-Type': 'application/json',
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ query, topK, minScore }),
+      body: JSON.stringify({ query, limit: topK, minScore }),
     });
 
     return handleResponse<SearchResultChunk[]>(res);
@@ -134,7 +134,7 @@ export const api = {
         'Content-Type': 'application/json',
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ message: query }),
     });
 
     return handleResponse<ChatResponse>(res);

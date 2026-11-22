@@ -1,10 +1,14 @@
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using EnterpriseRag.IoC;
+using EnterpriseRag.WebApi.HealthChecks;
 using EnterpriseRag.WebApi.Middlewares;
+using EnterpriseRag.WebApi.Workers;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +16,26 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("EnterpriseCors", policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+    });
+});
 
 // Rate Limiting por IP (memoria local por instancia; en multi-instancia requiere almacén distribuido como Redis)
 builder.Services.AddRateLimiter(options =>
@@ -72,6 +96,12 @@ builder.Services.AddInfrastructurePersistenceDependencies(builder.Configuration)
 builder.Services.AddInfrastructureIdentityDependencies(builder.Configuration, builder.Environment);
 builder.Services.AddVectorStoreDependencies(builder.Configuration);
 builder.Services.AddExternalServicesDependencies(builder.Configuration);
+builder.Services.AddHostedService<DocumentIngestionWorker>();
+
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy("Process is alive."), tags: ["live"])
+    .AddCheck<SqlServerReadinessHealthCheck>("sqlserver", tags: ["ready"])
+    .AddCheck<QdrantReadinessHealthCheck>("qdrant", tags: ["ready"]);
 
 
 var app = builder.Build();
@@ -86,12 +116,21 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
+app.UseCors("EnterpriseCors");
 app.UseRateLimiter();
 
 app.UseAuthentication();
@@ -99,10 +138,42 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = WriteHealthResponseAsync
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthResponseAsync
+});
+
 
 await app.Services.SeedIdentityDatabaseAsync();
 
 app.Run();
+
+static Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+
+    var payload = new
+    {
+        status = report.Status.ToString(),
+        totalDurationMs = Math.Round(report.TotalDuration.TotalMilliseconds, 2),
+        checks = report.Entries.ToDictionary(
+            entry => entry.Key,
+            entry => new
+            {
+                status = entry.Value.Status.ToString(),
+                durationMs = Math.Round(entry.Value.Duration.TotalMilliseconds, 2)
+            })
+    };
+
+    return context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+}
 
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)

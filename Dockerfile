@@ -28,12 +28,17 @@ RUN dotnet publish "EnterpriseRag.WebApi.csproj" -c Release -o /app/publish /p:U
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
-# Exponer puertos HTTP y HTTPS
+# Crear directorio de almacenamiento local con permisos para el usuario no-root
+RUN mkdir -p /app/Storage/Uploads && chown -R $APP_UID:$APP_UID /app
+
+USER $APP_UID
+
 EXPOSE 8080
 EXPOSE 8081
 
-# Copiar artefactos compilados desde la etapa de build
-COPY --from=build /app/publish .
+COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
 
-# Punto de entrada de la aplicación
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8080/health/live || exit 1
+
 ENTRYPOINT ["dotnet", "EnterpriseRag.WebApi.dll"]

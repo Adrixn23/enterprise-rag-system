@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\Core\EnterpriseRag.Core.Application\EnterpriseRag.Core.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.Persistence\EnterpriseRag.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\EnterpriseRag.Infrastructure.VectorStore\EnterpriseRag.Infrastructure.VectorStore.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\EnterpriseRag.WebApi\EnterpriseRag.WebApi.csproj" />
   </ItemGroup>
 
 </Project>

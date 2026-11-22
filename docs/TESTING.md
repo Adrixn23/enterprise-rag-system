@@ -7,13 +7,18 @@ Ejecución:
 dotnet test tests/EnterpriseRag.UnitTests/EnterpriseRag.UnitTests.csproj
 ```
 
-Cobertura verificada (**78 pruebas**):
+Cobertura verificada (**103 pruebas unitarias**):
 - **Aislamiento Multi-Tenant:**
   - `MultiTenantIsolationTests`: aislamiento en endpoints de documentos y ausencia de `TenantId` en `RegisterRequestDto`.
   - `ControllerTenantIsolationTests`: rechazo `401 Unauthorized` ante claim `"tenantId"` ausente, malformado o `Guid.Empty` en `ChatController`, `SearchController` y `DocumentsController`.
   - `DocumentServiceIsolationTests`: pruebas negativas de Tenant A intentando leer, listar chunks o eliminar documentos de Tenant B (`Times.Never` en SQL, Qdrant y almacenamiento).
   - `SearchAndChatIsolationTests`: rechazo de `Guid.Empty` y propagación exacta de `TenantId` hacia Qdrant y `IDocumentRepository`.
-  - `QdrantVectorStoreIsolationTests`: rechazo de `Guid.Empty` y verificación de constructores de filtro `tenantId` / `documentId`.
+  - `QdrantVectorStoreIsolationTests`: rechazo de `Guid.Empty`, verificación de filtros `tenantId` / `documentId` y propagación de `OperationCanceledException`.
+- **Embeddings, Resiliencia, Observabilidad, Paginación, Outbox y Storage:**
+  - `GeminiEmbeddingServiceTests` y `GeminiGenerativeAiServiceTests`: batching en lotes ≤ 100 manteniendo orden, protección de `x-goog-api-key` fuera de URLs/logs, cancelación y timeout.
+  - `HttpResiliencePolicyTests`: reintentos acotados ante `429` (`Retry-After`), `503` y `500` con `AddStandardResilienceHandler`.
+  - `HealthChecksTests` y `RagTelemetryTests`: verificación de `/health/ready` sin exposición de secretos y métricas `RagTelemetry` sin alta cardinalidad.
+  - `DocumentPaginationAndDeduplicationTests`, `OutboxAndAsyncIngestionTests`, `LocalFileStorageServiceTests` y `S3CompatibleFileStorageServiceTests`.
 - **Identity, Confirmación y Rate Limiting:**
   - `EmailConfirmationAndEnvironmentTests` y `EmailSettingsValidationTests`: flujo Development vs Production, `ValidateOnStart()`, protección anti-enumeración y cooldown.
   - `IdentityTokenAndResendConcurrencyTests`: validación con `UserManager<ApplicationUser>` + `DataProtectorTokenProvider` reales (uso único, manipulación, expiración), 10 solicitudes concurrentes de reenvío y reintento tras fallo SMTP.
@@ -52,3 +57,11 @@ cd client
 npm run build   # Ejecuta tsc -b && vite build
 npm run lint    # Ejecuta oxlint
 ```
+
+## 4. Pruebas de Carga (`tests/load/k6-enterprise-rag.js`)
+
+Suite k6 lista para ejecutar contra una instancia levantada (no ejecutada automáticamente en CI):
+```powershell
+k6 run -e BASE_URL=http://localhost:5235 -e TEST_EMAIL=demo@empresa.com -e TEST_PASSWORD=TuPassword k6-enterprise-rag.js
+```
+Mide throughput, P50/P95/P99 y tasa de error para login, listado paginado, búsqueda semántica, chat RAG y `/health/ready`.

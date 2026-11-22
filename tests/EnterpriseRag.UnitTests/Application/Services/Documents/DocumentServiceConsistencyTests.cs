@@ -11,7 +11,6 @@ using EnterpriseRag.Core.Domain.Common.Errors.Documents;
 using EnterpriseRag.Core.Domain.Entities.Documents;
 using EnterpriseRag.Core.Domain.Interfaces.Documents;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -60,11 +59,6 @@ public class DocumentServiceConsistencyTests
 
         // Contenido con firma binaria real (Magic Bytes) de un PDF: %PDF-1.7
         var validPdfBytes = "%PDF-1.7\nSample content"u8.ToArray();
-        var fileMock = new Mock<IFormFile>();
-        fileMock.Setup(f => f.Length).Returns(validPdfBytes.Length);
-        fileMock.Setup(f => f.FileName).Returns("sample.pdf");
-        fileMock.Setup(f => f.ContentType).Returns("application/pdf");
-        fileMock.Setup(f => f.OpenReadStream()).Returns(() => new MemoryStream(validPdfBytes));
 
         _textExtractorServiceMock.Setup(x => x.CanExtract("application/pdf")).Returns(true);
         _textExtractorServiceMock
@@ -97,7 +91,10 @@ public class DocumentServiceConsistencyTests
 
         var request = new UploadDocumentRequestDto
         {
-            File = fileMock.Object,
+            FileName = "sample.pdf",
+            ContentType = "application/pdf",
+            FileSizeBytes = validPdfBytes.Length,
+            OpenReadStream = () => new MemoryStream(validPdfBytes),
             TenantId = tenantId
         };
 

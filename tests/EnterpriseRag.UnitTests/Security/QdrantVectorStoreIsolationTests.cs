@@ -80,4 +80,36 @@ public class QdrantVectorStoreIsolationTests
         filter.Must.Should().Contain(c => c.Field.Key == "tenantId" && c.Field.Match.Keyword == tenantId.ToString());
         filter.Must.Should().Contain(c => c.Field.Key == "documentId" && c.Field.Match.Keyword == documentId.ToString());
     }
+
+    [Fact]
+    public async Task Methods_WhenClientCancels_ShouldPropagateOperationCanceledException()
+    {
+        // Arrange
+        var client = new QdrantClient("localhost", 6334);
+        var sut = new QdrantVectorStoreService(client, Options.Create(_settings), new Mock<ILogger<QdrantVectorStoreService>>().Object);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var points = new[]
+        {
+            new EnterpriseRag.Core.Application.DTOs.Vector.VectorPointDto
+            {
+                PointId = Guid.NewGuid(),
+                TenantId = Guid.NewGuid(),
+                DocumentId = Guid.NewGuid(),
+                ChunkIndex = 0,
+                Content = "test",
+                Vector = new ReadOnlyMemory<float>(new float[768])
+            }
+        };
+
+        // Act & Assert
+        Func<Task> upsertAct = () => sut.UpsertPointAsync(points, cts.Token);
+        Func<Task> searchAct = () => sut.SearchAsync(new ReadOnlyMemory<float>(new float[768]), Guid.NewGuid(), 5, cts.Token);
+        Func<Task> deleteAct = () => sut.DeleteByDocumentAsync(Guid.NewGuid(), Guid.NewGuid(), cts.Token);
+
+        await upsertAct.Should().ThrowAsync<OperationCanceledException>();
+        await searchAct.Should().ThrowAsync<OperationCanceledException>();
+        await deleteAct.Should().ThrowAsync<OperationCanceledException>();
+    }
 }

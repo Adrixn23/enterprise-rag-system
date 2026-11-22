@@ -21,4 +21,10 @@ public static class ChatErrors
 
     public static Error GenerationFailed(string details) =>
         new("Chat.GenerationFailed", $"Error al generar la respuesta con el modelo de IA: {details}");
+
+    public static Error ServiceUnavailable =>
+        new("Chat.ServiceUnavailable", "El servicio de IA está experimentando alta demanda temporal. Por favor, intenta nuevamente en unos momentos.");
+
+    public static Error RateLimited =>
+        new("Chat.RateLimited", "Se alcanzó temporalmente el límite de solicitudes del proveedor de IA. Por favor, intenta nuevamente en unos momentos.");
 }

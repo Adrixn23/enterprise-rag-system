@@ -6,6 +6,7 @@ using EnterpriseRag.Infrastructure.Identity.Entities;
 using EnterpriseRag.Infrastructure.Identity.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ public class EmailConfirmationAndEnvironmentTests
     private readonly Mock<IOptions<EmailSettings>> _emailOptionsMock;
     private readonly Mock<IHostEnvironment> _environmentMock;
     private readonly Mock<IEmailSenderService> _emailSenderMock;
-    private readonly IMemoryCache _memoryCache;
+    private readonly IDistributedCache _distributedCache;
     private readonly Mock<ILogger<AccountService>> _loggerMock;
 
     public EmailConfirmationAndEnvironmentTests()
@@ -58,7 +59,7 @@ public class EmailConfirmationAndEnvironmentTests
 
         _environmentMock = new Mock<IHostEnvironment>();
         _emailSenderMock = new Mock<IEmailSenderService>();
-        _memoryCache = new MemoryCache(new MemoryCacheOptions());
+        _distributedCache = new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
         _loggerMock = new Mock<ILogger<AccountService>>();
     }
 
@@ -69,7 +70,7 @@ public class EmailConfirmationAndEnvironmentTests
         _emailOptionsMock.Object,
         _environmentMock.Object,
         _emailSenderMock.Object,
-        _memoryCache,
+        _distributedCache,
         _loggerMock.Object);
 
     [Fact]

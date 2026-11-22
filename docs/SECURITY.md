@@ -29,8 +29,14 @@
   - `auth-resend`: 5 solicitudes / 15 min por IP.
   - `auth-confirm`: 10 solicitudes / 15 min por IP.
   - Rechazos retornan HTTP `429 Too Many Requests` con `ProblemDetails` y cabecera `Retry-After`.
-- **Cooldown de reenvío (`AccountService.ResendConfirmationEmailAsync`):** 2 minutos por cuenta normalizada usando `IMemoryCache` y bloqueo particionado (`SemaphoreSlim`) para evitar condiciones de carrera TOCTOU. El cooldown solo se activa tras envío exitoso; las cuentas inexistentes o ya confirmadas devuelven la misma respuesta exitosa para prevenir enumeración.
+- **Cooldown de reenvío (`AccountService.ResendConfirmationEmailAsync`):** 2 minutos por cuenta normalizada usando `IDistributedCache` (respaldado por memoria distribuida en desarrollo y preparado para Redis en multi-instancia) y bloqueo particionado (`SemaphoreSlim`) para evitar condiciones de carrera TOCTOU. El cooldown solo se activa tras envío exitoso; las cuentas inexistentes o ya confirmadas devuelven la misma respuesta exitosa para prevenir enumeración.
 
 ## 4. Aislamiento de Chat en Frontend
 
 - `RagChatWindow.tsx` aísla el historial por usuario bajo `rag_chat_history_${userId}`, sincroniza el estado al cambiar `userId` sin escrituras obsoletas y descarta respuestas en vuelo si el usuario cambia o cierra sesión. `useAuth.ts` limpia el historial del usuario al ejecutar `logout()`.
+
+## 5. Protección de Credenciales, CORS y Cabeceras de Seguridad
+
+- **API Key de Gemini por Header:** `GeminiEmbeddingService` y `GeminiGenerativeAiService` envían la clave exclusivamente en la cabecera `x-goog-api-key` (nunca en query strings `?key=`) y sanitizan posibles apariciones de la clave en mensajes de error/excepciones.
+- **CORS y Cabeceras HTTP (`Program.cs`):** Política `EnterpriseCors` configurable mediante `Cors:AllowedOrigins` (con orígenes locales únicamente en `Development`) y cabeceras `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`.
+- **Limitación conocida (JWT en `localStorage`):** El frontend almacena `rag_token` en `localStorage`. Migrar a cookies `HttpOnly; Secure; SameSite=Strict` requiere endpoint de sesión/refresh con protección CSRF y proxy/origen compartido; se documenta como evolución futura de seguridad.

@@ -40,15 +40,23 @@ public static class InfrastructureIdentityDependencies
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Memoria caché local para cooldown de reenvío de confirmación por cuenta
-        // NOTA: En despliegues multi-instancia, reemplazar IMemoryCache por IDistributedCache (ej. Redis).
-        services.AddMemoryCache();
+        // Caché distribuida (IDistributedCache) para cooldowns entre réplicas;
+        // en producción multi-instancia se enlaza con Redis (ej. AddStackExchangeRedisCache).
+        services.AddDistributedMemoryCache();
 
-        // 2. Registrar el DbContext de Identity con SQL Server
+        // 2. Registrar el DbContext de Identity con SQL Server y resiliencia transitoria
         services.AddDbContext<IdentityContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("IdentityConnection"),
-                b => b.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName)));
+                b =>
+                {
+                    b.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName);
+                    b.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorNumbersToAdd: null);
+                    b.CommandTimeout(30);
+                }));
 
         // 3. Registrar ASP.NET Core Identity con políticas de contraseñas y bloqueo robustas
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>

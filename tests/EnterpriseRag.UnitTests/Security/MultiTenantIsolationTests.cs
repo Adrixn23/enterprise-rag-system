@@ -1,6 +1,7 @@
 namespace EnterpriseRag.UnitTests.Security;
 
 using EnterpriseRag.Core.Application.Contracts.Documents;
+using EnterpriseRag.Core.Application.DTOs.Common;
 using EnterpriseRag.Core.Application.DTOs.Documents;
 using EnterpriseRag.Core.Domain.Common;
 using EnterpriseRag.Core.Domain.Common.Errors.Documents;
@@ -70,8 +71,8 @@ public class MultiTenantIsolationTests
         SetUserTenantClaim(userTenantId);
 
         _documentServiceMock
-            .Setup(x => x.GetByTenantAsync(userTenantId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<IEnumerable<DocumentResponseDto>>.Success([]));
+            .Setup(x => x.GetPagedByTenantAsync(userTenantId, 1, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PagedResponseDto<DocumentResponseDto>>.Success(new PagedResponseDto<DocumentResponseDto>()));
 
         // Act
         var result = await _sut.GetByTenant();
@@ -79,7 +80,7 @@ public class MultiTenantIsolationTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         _documentServiceMock.Verify(
-            x => x.GetByTenantAsync(userTenantId, It.IsAny<CancellationToken>()),
+            x => x.GetPagedByTenantAsync(userTenantId, 1, 20, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

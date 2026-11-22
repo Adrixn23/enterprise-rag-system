@@ -23,6 +23,9 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.FileSizeBytes)
             .IsRequired();
 
+        builder.Property(d => d.FileHash)
+            .HasMaxLength(64);
+
         builder.Property(d => d.StoragePath)
             .IsRequired()
             .HasMaxLength(1000);
@@ -46,6 +49,9 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
 
         builder.HasIndex(d => d.TenantId);
         builder.HasIndex(d => d.CreatedAt);
+        builder.HasIndex(d => new { d.TenantId, d.FileHash })
+            .IsUnique()
+            .HasFilter("[FileHash] IS NOT NULL AND [IsDeleted] = 0");
 
         builder.HasQueryFilter(d => !d.IsDeleted);
 

@@ -11,7 +11,7 @@ using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,7 +27,7 @@ public class AccountService : IAccountService
     private readonly EmailSettings _emailSettings;
     private readonly IHostEnvironment _environment;
     private readonly IEmailSenderService _emailSender;
-    private readonly IMemoryCache _memoryCache;
+    private readonly IDistributedCache _distributedCache;
     private readonly ILogger<AccountService> _logger;
 
     private static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(2);
@@ -43,7 +43,7 @@ public class AccountService : IAccountService
         IOptions<EmailSettings> emailSettings,
         IHostEnvironment environment,
         IEmailSenderService emailSender,
-        IMemoryCache memoryCache,
+        IDistributedCache distributedCache,
         ILogger<AccountService> logger)
     {
         _userManager = userManager;
@@ -52,7 +52,7 @@ public class AccountService : IAccountService
         _emailSettings = emailSettings.Value;
         _environment = environment;
         _emailSender = emailSender;
-        _memoryCache = memoryCache;
+        _distributedCache = distributedCache;
         _logger = logger;
     }
 
@@ -182,7 +182,8 @@ public class AccountService : IAccountService
         try
         {
             var cooldownKey = $"auth:resend-cooldown:{normalizedEmail}";
-            if (_memoryCache.TryGetValue(cooldownKey, out _))
+            var cachedCooldown = await _distributedCache.GetStringAsync(cooldownKey);
+            if (!string.IsNullOrEmpty(cachedCooldown))
             {
                 _logger.LogInformation("Solicitud de reenvío omitida por cooldown activo.");
                 return Result.Success();
@@ -192,7 +193,10 @@ public class AccountService : IAccountService
             if (user == null || user.EmailConfirmed)
             {
                 // Protección contra User Enumeration Attack: registrar cooldown y responder éxito idéntico
-                _memoryCache.Set(cooldownKey, true, ResendCooldown);
+                await _distributedCache.SetStringAsync(
+                    cooldownKey,
+                    "1",
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ResendCooldown });
                 return Result.Success();
             }
 
@@ -203,7 +207,10 @@ public class AccountService : IAccountService
                 await _emailSender.SendEmailConfirmationAsync(user.Email!, confirmationLink);
 
                 // Establecer cooldown únicamente tras un envío exitoso (si falla SMTP, el usuario puede reintentar)
-                _memoryCache.Set(cooldownKey, true, ResendCooldown);
+                await _distributedCache.SetStringAsync(
+                    cooldownKey,
+                    "1",
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ResendCooldown });
             }
             catch (Exception ex)
             {

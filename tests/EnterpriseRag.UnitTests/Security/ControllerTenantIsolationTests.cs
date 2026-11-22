@@ -90,8 +90,9 @@ public class ControllerTenantIsolationTests
         (await sut.Delete(Guid.NewGuid())).Should().BeOfType<UnauthorizedResult>();
 
         documentServiceMock.Verify(x => x.UploadDocumentAsync(It.IsAny<UploadDocumentRequestDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        documentServiceMock.Verify(x => x.EnqueueDocumentAsync(It.IsAny<UploadDocumentRequestDto>(), It.IsAny<CancellationToken>()), Times.Never);
         documentServiceMock.Verify(x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        documentServiceMock.Verify(x => x.GetByTenantAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        documentServiceMock.Verify(x => x.GetPagedByTenantAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         documentServiceMock.Verify(x => x.GetChunksByDocumentIdAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         documentServiceMock.Verify(x => x.DeleteDocumentAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
