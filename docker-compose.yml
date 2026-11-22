@@ -5,7 +5,7 @@ services:
     user: "0:0"
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:?Error: Variable MSSQL_SA_PASSWORD es requerida}
+      - "MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:?Variable MSSQL_SA_PASSWORD es requerida}"
     ports:
       - "1433:1433"
     volumes:
@@ -50,11 +50,11 @@ services:
       - QdrantSettings__Port=6334
       - QdrantSettings__ApiKey=${QdrantSettings__ApiKey:-}
       - QdrantSettings__CollectionName=enterprise-documents
-      - GeminiSettings__ApiKey=${GeminiSettings__ApiKey:?Error: Variable GeminiSettings__ApiKey es requerida}
+      - "GeminiSettings__ApiKey=${GeminiSettings__ApiKey:?Variable GeminiSettings__ApiKey es requerida}"
       - GeminiSettings__ModelId=${GeminiSettings__ModelId:-gemini-embedding-001}
       - GeminiSettings__EmbeddingDimension=768
       - GeminiSettings__GenerationModelId=${GeminiSettings__GenerationModelId:-gemini-2.5-flash}
-      - JWTSettings__Key=${JWTSettings__Key:?Error: Variable JWTSettings__Key es requerida}
+      - "JWTSettings__Key=${JWTSettings__Key:?Variable JWTSettings__Key es requerida}"
       - JWTSettings__Issuer=${JWTSettings__Issuer:-EnterpriseRagApi}
       - JWTSettings__Audience=${JWTSettings__Audience:-EnterpriseRagClient}
       - JWTSettings__DurationInMinutes=${JWTSettings__DurationInMinutes:-60}

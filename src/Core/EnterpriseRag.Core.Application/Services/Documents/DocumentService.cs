@@ -198,7 +198,7 @@ public class DocumentService : IDocumentService
             return Result<IEnumerable<DocumentChunkResponseDto>>.Failure(DocumentErrors.NotFound);
         }
 
-        var chunks = await _documentChunkRepository.GetByDocumentIdAsync(documentId, cancellationToken);
+        var chunks = await _documentChunkRepository.GetByDocumentIdAsync(documentId, tenantId, cancellationToken);
         var dtos = chunks.Adapt<IEnumerable<DocumentChunkResponseDto>>();
 
         return Result<IEnumerable<DocumentChunkResponseDto>>.Success(dtos);
@@ -222,7 +222,7 @@ public class DocumentService : IDocumentService
         }
 
         // 2. Eliminar chunks en SQL Server
-        await _documentChunkRepository.DeleteByDocumentIdAsync(id, cancellationToken);
+        await _documentChunkRepository.DeleteByDocumentIdAsync(id, tenantId, cancellationToken);
 
         // 3. Eliminar archivo fisico del almacenamiento
         await _fileStorageService.DeleteFileAsync(document.StoragePath, cancellationToken);

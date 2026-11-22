@@ -14,10 +14,11 @@ public class LoggingEmailSenderService : IEmailSenderService
 
     public Task SendEmailConfirmationAsync(string toEmail, string confirmationLink, CancellationToken cancellationToken = default)
     {
+        // En Development: NUNCA registrar el token ni el enlace completo que contenga el token
+        // para prevenir filtraciones inadvertidas en archivos de log o consolas.
         _logger.LogInformation(
-            "==== [SERVICIO DE CORREO - CONFIRMACIÓN] ====\nDestinatario: {Email}\nEnlace de Verificación: {Link}\nPara producción, configure un proveedor SMTP real en IEmailSenderService.",
-            toEmail,
-            confirmationLink);
+            "==== [DEV EMAIL SENDER] Notificación de confirmación de correo enviada a '{Email}'. (El token criptográfico está resguardado por seguridad).",
+            toEmail);
 
         return Task.CompletedTask;
     }

@@ -83,7 +83,7 @@ public class QdrantVectorStoreService : IVectorStoreService
                 return Result<List<VectorSearchResultDto>>.Success([]);
             }
 
-            var filter = Conditions.MatchKeyword("tenantId", tenantId.ToString());
+            var filter = BuildTenantSearchFilter(tenantId);
 
             var searchResults = await _client.SearchAsync(
                 collectionName: _settings.CollectionName,
@@ -120,14 +120,7 @@ public class QdrantVectorStoreService : IVectorStoreService
 
         try
         {
-            var filter = new Filter
-            {
-                Must =
-                {
-                    Conditions.MatchKeyword("tenantId",   tenantId.ToString()),
-                    Conditions.MatchKeyword("documentId", documentId.ToString())
-                }
-            };
+            var filter = BuildDocumentDeleteFilter(documentId, tenantId);
 
             await _client.DeleteAsync(
                 collectionName: _settings.CollectionName,
@@ -175,4 +168,20 @@ public class QdrantVectorStoreService : IVectorStoreService
 
         _logger.LogInformation("Coleccion {Collection} creada exitosamente en Qdrant.", _settings.CollectionName);
     }
+
+    public static Filter BuildTenantSearchFilter(Guid tenantId) =>
+        new()
+        {
+            Must = { Conditions.MatchKeyword("tenantId", tenantId.ToString()) }
+        };
+
+    public static Filter BuildDocumentDeleteFilter(Guid documentId, Guid tenantId) =>
+        new()
+        {
+            Must =
+            {
+                Conditions.MatchKeyword("tenantId", tenantId.ToString()),
+                Conditions.MatchKeyword("documentId", documentId.ToString())
+            }
+        };
 }

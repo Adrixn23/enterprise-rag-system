@@ -22,10 +22,15 @@ public class DocumentRepository : GenericRepository<Document, Guid>, IDocumentRe
             .ToListAsync(cancellationToken);
     }
 
-    public async Task UpdateStatusAsync(Guid id, DocumentProcessingStatus status, string? errorMessage = null, CancellationToken cancellationToken = default)
+    public async Task UpdateStatusAsync(Guid id, Guid tenantId, DocumentProcessingStatus status, string? errorMessage = null, CancellationToken cancellationToken = default)
     {
+        if (id == Guid.Empty || tenantId == Guid.Empty)
+        {
+            return;
+        }
+
         await _dbSet
-            .Where(d => d.Id == id)
+            .Where(d => d.Id == id && d.TenantId == tenantId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(d => d.Status, status)
                 .SetProperty(d => d.ErrorMessage, errorMessage)

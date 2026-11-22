@@ -1,242 +1,232 @@
 <div align="center">
 
-# 🤖 Enterprise RAG System
+# Enterprise RAG System
 
-### Plataforma Empresarial de Retrieval-Augmented Generation (RAG) & Asistente Corporativo Multitenant
-*Clean Architecture · Aislamiento Multitenant Estricto · Búsqueda Semántica Vectorial con Qdrant · Web API en .NET 9 · SPA en React 19 + TypeScript + Vite + Tailwind CSS*
-
-<br/>
-
-[![.NET 9.0](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![C# 13](https://img.shields.io/badge/C%23-13.0-239120?style=for-the-badge&logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-API%20LLM-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-Bundler-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS%20v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Clean Architecture](https://img.shields.io/badge/Clean-Architecture-0078D4?style=for-the-badge&logo=blueprint&logoColor=white)](https://blog.cleancoder.com/)
-[![EF Core](https://img.shields.io/badge/EF%20Core-Code%20First-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://learn.microsoft.com/ef/core/)
-[![SQL Server](https://img.shields.io/badge/SQL%20Server-2022-CC292B?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)](https://www.microsoft.com/sql-server)
-[![Qdrant](https://img.shields.io/badge/Qdrant-Vector%20DB-DC2626?style=for-the-badge&logo=qdrant&logoColor=white)](https://qdrant.tech/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+### Plataforma Empresarial de Retrieval-Augmented Generation (RAG) & Asistente Corporativo Multi-Tenant
+*Clean Architecture · .NET 9 · C# 13 · SQL Server 2022 · Qdrant Vector DB · Google Gemini · React 19 + TypeScript + Vite*
 
 </div>
 
 ---
 
-## 📌 1. Descripción del Proyecto y Problema que Resuelve
+## 1. Descripción del Proyecto
 
-Las organizaciones modernas manejan miles de documentos no estructurados (contratos, políticas operativas, manuales técnicos y normativas legales) dispersos en repositorios internos. Los modelos de lenguaje generales (LLMs) sufren de **alucinaciones** y desconocen la información privada corporativa.
+**Enterprise RAG System** es una aplicación full-stack empresarial diseñada para la ingesta segura, indexación vectorial y consulta conversacional de documentos corporativos mediante **Retrieval-Augmented Generation (RAG)**.
 
-**Enterprise RAG System** resuelve este desafío implementando una solución de arquitectura empresarial integral:
-1. **Ingesta y Validación Rigurosa**: Validación binaria por *Magic Bytes* (previene subida de ejecutables camuflados) y extracción textual limpia.
-2. **Chunking Semántico y Vectorización**: Fragmentación en chunks de 800 caracteres con solapamiento (*overlap*) de 100 caracteres, convertidos a vectores densos de 768 dimensiones mediante `gemini-embedding-001`.
-3. **Indexación HNSW en Qdrant**: Búsqueda vectorial ultrarrápida por distancia coseno con filtrado estricto por `TenantId`.
-4. **Síntesis Fundamentada con Google Gemini**: Generación de respuestas con citas exactas, referencias a fragmentos consultados y nivel de relevancia (*score*).
-5. **Seguridad y Aislamiento B2B**: Garantía criptográfica y a nivel de datos de que ningún inquilino (*tenant*) pueda acceder a documentos o vectores ajenos.
+El sistema combina **ASP.NET Core 9** bajo **Clean Architecture**, **SQL Server 2022** para metadatos relacionales e identidad, **Qdrant** para búsqueda semántica por similitud coseno, **Google Gemini API** para embeddings de 768 dimensiones y síntesis de respuestas fundamentadas, y una SPA en **React 19 + TypeScript + Vite**.
 
 ---
 
-## 🏛️ 2. Arquitectura del Sistema
+## 2. Problema que Resuelve
 
-El sistema sigue los principios de **Clean Architecture**, **Domain-Driven Design (DDD)** y el patrón funcional **Result Pattern**, desacoplando totalmente las reglas de negocio de la infraestructura.
+Las organizaciones almacenan políticas, contratos y manuales en documentos no estructurados. Consultar un LLM público directamente produce alucinaciones, carece de citas verificables y expone información privada. Enterprise RAG System resuelve esto mediante:
+
+- **Respuestas fundamentadas con citas reales:** cada respuesta del chat incluye los fragmentos recuperados y su puntuación de similitud.
+- **Aislamiento estricto por organización (`TenantId`):** ningún inquilino puede consultar, listar, modificar ni eliminar documentos, chunks o vectores de otro tenant.
+- **Ingesta validada:** verificación binaria por *Magic Bytes* y compensación tipo Saga ante fallos parciales entre Qdrant, SQL Server y almacenamiento en disco.
+
+---
+
+## 3. Características Principales Verificadas
+
+- **Autenticación y Seguridad Identity:** registro aislado por tenant (`Guid.NewGuid()`), hashing PBKDF2, bloqueo tras 5 intentos fallidos, JWT HMAC-SHA256 (`ClockSkew = Zero`, clave ≥ 32 bytes validada al arranque).
+- **Confirmación de Correo Segura (Production vs Development):** enlace con fragmento URL (`#token=...`) para no enviar el token en el `GET`, limpieza inmediata con `history.replaceState`, `Content-Security-Policy` con `nonce` criptográfico por petición, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, confirmación mediante `POST`, protección anti-enumeración y `EmailSettingsValidator` *fail-fast* en arranque.
+- **Rate Limiting y Cooldown:** limitación por IP (`auth-register`, `auth-resend`, `auth-confirm`) con respuestas `429 Too Many Requests` (`ProblemDetails` + `Retry-After`) y cooldown por cuenta con bloqueo particionado en memoria.
+- **Pipeline de Ingesta Documental:** validación de *Magic Bytes*, chunking configurable, batch embeddings (`gemini-embedding-001`, 768 dimensiones), indexación HNSW en Qdrant y rollback compensatorio si falla la persistencia en SQL Server.
+- **Búsqueda Vectorial y Chat RAG:** recuperación semántica filtrada obligatoriamente por `tenantId` en Qdrant y enriquecida por lotes en SQL Server (sin consultas N+1).
+- **Frontend Modular:** SPA en React 19 + TypeScript con componentes desacoplados (`AuthCard`, `DocumentsManager`, `SemanticSearch`, `RagChatWindow`), manejo global de sesiones `401` e historial de chat aislado por `userId` en `localStorage`.
+
+---
+
+## 4. Arquitectura del Sistema
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer ["Cliente Web (Frontend)"]
-        UI["React 19 + TypeScript + Vite"]
-        UI -->|JWT Bearer + HTTPS| API
-    end
+    Client["Frontend SPA (React 19 + TypeScript + Vite)"]
+    Api["EnterpriseRag.WebApi\n(Controllers, RateLimiter, ForwardedHeaders, ExceptionMiddleware, ProblemDetails)"]
+    App["EnterpriseRag.Core.Application\n(DocumentService, SearchService, ChatService, DTOs, Contracts)"]
+    Domain["EnterpriseRag.Core.Domain\n(Entities, Result Pattern, Typed Errors, Settings)"]
+    Persistence["EnterpriseRag.Infrastructure.Persistence\n(EF Core 9, SQL Server 2022, Repositories)"]
+    Identity["EnterpriseRag.Infrastructure.Identity\n(ASP.NET Identity, AccountService, JWT, SMTP/Dev Email)"]
+    Vector["EnterpriseRag.Infrastructure.VectorStore\n(QdrantClient gRPC, HNSW Cosine, tenantId Filter)"]
+    External["EnterpriseRag.Infrastructure.ExternalServices\n(Gemini Embeddings 768d, Gemini LLM, FileStorage, TextExtractor)"]
 
-    subgraph ApiLayer ["Presentation (EnterpriseRag.WebApi)"]
-        API["ASP.NET Core 9 Controllers"]
-        ResultExt["ResultExtensions (RFC 7807 ProblemDetails)"]
-        API --> ResultExt
-    end
-
-    subgraph CoreLayer ["Core (Clean Architecture)"]
-        App["EnterpriseRag.Core.Application\n(Services, DTOs, Saga Orchestration)"]
-        Domain["EnterpriseRag.Core.Domain\n(Entities, Result Pattern, Typed Errors)"]
-        App --> Domain
-    end
-
-    subgraph InfraLayer ["Infrastructure & Persistence"]
-        Persistence["EnterpriseRag.Infrastructure.Persistence\n(EF Core, SQL Server 2022)"]
-        Identity["EnterpriseRag.Infrastructure.Identity\n(ASP.NET Identity, PBKDF2, JWT HMAC-SHA256)"]
-        VectorStore["EnterpriseRag.Infrastructure.VectorStore\n(Qdrant Vector DB, HNSW Cosine Index)"]
-        ExtServices["EnterpriseRag.Infrastructure.ExternalServices\n(Google Gemini API, 768d Embeddings)"]
-    end
-
-    API --> App
+    Client -->|HTTPS + JWT Bearer| Api
+    Api --> App
+    App --> Domain
     App --> Persistence
-    App --> Identity
-    App --> VectorStore
-    App --> ExtServices
+    App --> Vector
+    App --> External
+    Api --> Identity
+    Identity --> Domain
+    Persistence --> Domain
+```
+
+Para detalles de capas, flujo Saga y manejo de cancelaciones, consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## 5. Stack Tecnológico
+
+- **Backend:** .NET 9.0, C# 13, ASP.NET Core Web API, Entity Framework Core 9, ASP.NET Core Identity, Mapster.
+- **Bases de Datos:** Microsoft SQL Server 2022, Qdrant Vector Database (`v1.13.4`).
+- **IA Generativa y Embeddings:** Google Gemini API (`gemini-embedding-001` con `outputDimensionality: 768`, `gemini-2.5-flash`).
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React.
+- **Infraestructura y Pruebas:** Docker, Docker Compose, xUnit, Moq, FluentAssertions, Microsoft.Playwright.
+
+---
+
+## 6. Estructura de Carpetas
+
+```text
+enterprise-rag-system/
+├── client/                                      # SPA React 19 + TypeScript + Vite
+├── docs/                                        # Documentación técnica (ARCHITECTURE, SECURITY, TESTING)
+├── src/
+│   ├── Core/
+│   │   ├── EnterpriseRag.Core.Domain/           # Entidades, Result<T>, Errores tipados, Settings
+│   │   └── EnterpriseRag.Core.Application/      # Servicios de aplicación, DTOs y contratos
+│   ├── Infrastructure/
+│   │   ├── EnterpriseRag.Infrastructure.Persistence/      # ApplicationDbContext, Repositorios EF Core
+│   │   ├── EnterpriseRag.Infrastructure.Identity/         # IdentityContext, AccountService, SMTP/Dev Email
+│   │   ├── EnterpriseRag.Infrastructure.VectorStore/      # QdrantVectorStoreService
+│   │   └── EnterpriseRag.Infrastructure.ExternalServices/ # Gemini API, FileStorage, TextExtractor
+│   ├── IoC/
+│   │   └── EnterpriseRag.IoC/                   # Registro modular de dependencias y validadores
+│   └── Presentation/
+│       └── EnterpriseRag.WebApi/                # Controladores, Middlewares, RateLimiter, Program.cs
+├── tests/
+│   ├── EnterpriseRag.UnitTests/                 # Pruebas unitarias, Identity real y Playwright (78 tests)
+│   └── EnterpriseRag.IntegrationTests/          # Pruebas reales SQL Server + Qdrant (6 tests)
+├── Dockerfile                                   # Build multi-stage .NET 9
+├── docker-compose.yml                           # Orquestación sqlserver, qdrant y api
+└── .env.example                                 # Plantilla de variables de entorno sin secretos
 ```
 
 ---
 
-## 🔄 3. Flujo RAG: Ingestión, Indexación y Recuperación
+## 7. Flujo RAG
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Usuario Autenticado
-    participant Client as Frontend (React + Vite)
-    participant WebApi as Web API (.NET 9)
-    participant DocService as DocumentService (Saga)
-    participant Gemini as Google Gemini API
-    participant Qdrant as Qdrant Vector DB
-    participant Sql as SQL Server 2022
-
-    rect rgb(20, 25, 40)
-    Note over User,Sql: Flujo de Ingestión Documental
-    User->>Client: Sube archivo PDF
-    Client->>WebApi: POST /api/v1/documents/upload (Multipart)
-    WebApi->>DocService: UploadDocumentAsync(stream, tenantId)
-    DocService->>DocService: Valida Magic Bytes (%PDF) y Cuota
-    DocService->>DocService: Chunking (800 chars, overlap 100)
-    DocService->>Gemini: Genera Embeddings (gemini-embedding-001, 768d)
-    Gemini-->>DocService: Vectores 768d
-    DocService->>Qdrant: Upsert Chunks con Payload { tenantId, documentId }
-    DocService->>Sql: Guarda Documento y Chunks Metadata
-    Note over DocService,Sql: Si SQL falla, se dispara Compensación: rollback en Qdrant y borrado de archivo físico
-    DocService-->>WebApi: Result<DocumentItemDto>.Success
-    WebApi-->>Client: 200 OK (Documento Indexado)
-    end
-
-    rect rgb(20, 35, 30)
-    Note over User,Sql: Flujo de Consulta RAG (Chat / Búsqueda)
-    User->>Client: "¿Cuál es la política de devoluciones?"
-    Client->>WebApi: POST /api/v1/chat/ask { query }
-    WebApi->>DocService: AskQuestionAsync(query, tenantId)
-    DocService->>Gemini: Genera Embedding de la consulta (768d)
-    Gemini-->>DocService: Vector de consulta
-    DocService->>Qdrant: Search (Cosine, Filter: tenantId == JWT.tenantId, Top 5)
-    Qdrant-->>DocService: Fragmentos más relevantes con score > 0.6
-    DocService->>Gemini: Prompt Contextualizado (Contexto + Pregunta)
-    Gemini-->>DocService: Respuesta fundamentada
-    DocService-->>WebApi: Result<ChatResponseDto> (Respuesta + Citas reales)
-    WebApi-->>Client: 200 OK con respuesta y fuentes consultadas
-    end
-```
+1. **Ingesta:** `POST /api/v1/documents/upload` valida el archivo por *Magic Bytes*, guarda el archivo en almacenamiento local, extrae texto y lo divide en chunks.
+2. **Embeddings:** `GeminiEmbeddingService` genera vectores de 768 dimensiones mediante `gemini-embedding-001`.
+3. **Almacenamiento Dual + Saga:** `QdrantVectorStoreService.UpsertPointAsync` indexa los puntos con payload `{ tenantId, documentId, chunkIndex, content }`. Luego `DocumentRepository` persiste `Document` y `DocumentChunk` en SQL Server; si SQL falla, se eliminan los vectores en Qdrant y el archivo físico.
+4. **Recuperación:** `SearchService` vectoriza la consulta y ejecuta `QdrantVectorStoreService.SearchAsync` con filtro obligatorio `tenantId`, filtrando por `MinScore` y resolviendo nombres en lote vía `DocumentRepository.GetFileNamesByIdsAsync`.
+5. **Generación:** `ChatService` construye el prompt contextualizado y solicita la síntesis a `GeminiGenerativeAiService`, retornando respuesta y citas verificables.
 
 ---
 
-## 🔒 4. Seguridad Multitenant & Protección de Datos
+## 8. Estrategia Multi-Tenant y Seguridad
 
-| Mecanismo | Implementación Técnica | Garantía de Seguridad |
-|---|---|---|
-| **Aislamiento Multitenant** | `TenantId` criptográfico (`Guid`) inyectado en Claims del JWT emitido. | El backend nunca confía en el `TenantId` enviado por el cuerpo del cliente en operaciones autenticadas. |
-| **Protección en Registro** | Auto-aprovisionamiento con `Guid.NewGuid()` si no se suministra un Tenant. | Previene la auto-asignación a organizaciones ajenas sin invitación previa. |
-| **Búsqueda Vectorial Aislada** | Filtros de Qdrant forzados con `FieldCondition("tenantId", MatchValue(tenantId))`. | Cero riesgo de que un inquilino recupere o consulte vectores de otro cliente. |
-| **Validación de Archivos** | Inspección de primeros bytes (*Magic Bytes*: `%PDF-`, etc.). | Mitiga ataques de extension spoofing (ej. ejecutables `.exe` renombrados a `.pdf`). |
-| **Resiliencia y Saga Compensatoria** | Patrón Saga en `DocumentService.UploadDocumentAsync()`. | Si la persistencia relacional falla, se compensa eliminando automáticamente los vectores de Qdrant y el archivo en disco. |
-| **Zero Secrets in Git** | Exclusión de `.env`, `Storage/Uploads` y migración a .NET User Secrets. | Repositorio 100% libre de secretos, credenciales o documentos personales. |
+- El `TenantId` se asigna en el servidor al registrar una organización (`Guid.NewGuid()`); los DTOs de registro y endpoints autenticados no aceptan `TenantId` arbitrario del cliente.
+- Todos los controladores protegidos extraen `tenantId` exclusivamente del claim `"tenantId"` del JWT validado y devuelven `401 Unauthorized` si falta o es inválido.
+- Qdrant filtra obligatoriamente por `tenantId` en búsqueda y por `tenantId` + `documentId` en eliminación.
+- `DocumentRepository` y `DocumentChunkRepository` exigen `tenantId` en consultas, actualizaciones de estado y borrado lógico (`!IsDeleted`).
+
+Consulta la matriz completa de controles en [docs/SECURITY.md](docs/SECURITY.md).
 
 ---
 
-## 🛠️ 5. Stack Tecnológico
+## 9. Ejecución Local con Docker Compose
 
-* **Backend**: .NET 9.0 (C# 13), ASP.NET Core Web API, Entity Framework Core 9.
-* **Inteligencia Artificial**: Google Gemini API (`gemini-2.5-flash`, `gemini-embedding-001` con `outputDimensionality: 768`).
-* **Bases de Datos**:
-  * **Relacional / Identity**: Microsoft SQL Server 2022 (Linux Container).
-  * **Vectorial**: Qdrant Vector Database (Índices HNSW, Distancia Coseno).
-* **Frontend**: React 19, TypeScript 5, Vite, Tailwind CSS v4, Lucide Icons.
-* **Seguridad & Autenticación**: ASP.NET Core Identity, PBKDF2 Hashing, JWT Bearer (HMAC-SHA256 con claves ≥ 32 bytes), Account Lockout tras 5 intentos fallidos.
-* **Infraestructura**: Docker & Docker Compose con healthchecks activos.
-* **Testing**: xUnit, Moq, FluentAssertions (26/26 pruebas unitarias y de aislamiento multitenant pasando en verde).
+### Requisitos
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [Node.js 20+](https://nodejs.org/)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
----
-
-## 🚀 6. Instalación y Puesta en Marcha Local
-
-### Requisitos Previos
-* [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-* [Node.js 20+](https://nodejs.org/) y npm
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) en ejecución
-
-### Paso 1: Clonar el Repositorio
-```powershell
-git clone https://github.com/Adrixn23/enterprise-rag-system.git
-cd enterprise-rag-system
-git checkout feature/rag-chat-module
-```
-
-### Paso 2: Configurar Infraestructura con Docker
-Copia el archivo de entorno y levanta los servicios:
+### Paso 1: Variables de entorno
 ```powershell
 Copy-Item .env.example .env
+```
+Edita `.env` con tus claves locales (`MSSQL_SA_PASSWORD`, `GeminiSettings__ApiKey`, `JWTSettings__Key`, y `EmailSettings__*` si ejecutas `api` en contenedor en modo `Production`).
+
+### Paso 2: Levantar infraestructura (SQL Server y Qdrant)
+```powershell
+docker compose config
 docker compose up -d sqlserver qdrant
 ```
-* **SQL Server**: `localhost:1433`
-* **Qdrant**: `localhost:6333` (Dashboard disponible en `http://localhost:6333/dashboard`)
+- **SQL Server:** `localhost:1433`
+- **Qdrant:** `localhost:6333` (HTTP/Dashboard) y `localhost:6334` (gRPC)
 
-### Paso 3: Configurar Secretos del Backend (.NET User Secrets)
+### Paso 3: Configurar User Secrets para ejecutar la WebApi en Development
 ```powershell
 dotnet user-secrets init --project src/Presentation/EnterpriseRag.WebApi
-
-dotnet user-secrets set "Gemini:ApiKey" "TU_API_KEY_DE_GEMINI" --project src/Presentation/EnterpriseRag.WebApi
-dotnet user-secrets set "Gemini:Model" "gemini-2.5-flash" --project src/Presentation/EnterpriseRag.WebApi
-dotnet user-secrets set "Gemini:EmbeddingModel" "gemini-embedding-001" --project src/Presentation/EnterpriseRag.WebApi
-
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost,1433;Database=EnterpriseRagDb;User Id=sa;Password=YourStrong@Pass123!;TrustServerCertificate=True;MultipleActiveResultSets=true;" --project src/Presentation/EnterpriseRag.WebApi
-dotnet user-secrets set "ConnectionStrings:IdentityConnection" "Server=localhost,1433;Database=EnterpriseRagIdentityDb;User Id=sa;Password=YourStrong@Pass123!;TrustServerCertificate=True;MultipleActiveResultSets=true;" --project src/Presentation/EnterpriseRag.WebApi
-
-dotnet user-secrets set "JWTSettings:Key" "EnterpriseRag_SuperSecret_Key_For_JWT_Authentication_2026_Development_Key_123456789!" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost,1433;Database=EnterpriseRagDb;User Id=sa;Password=TU_PASSWORD_SQL;TrustServerCertificate=True;MultipleActiveResultSets=true;" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "ConnectionStrings:IdentityConnection" "Server=localhost,1433;Database=EnterpriseRagIdentityDb;User Id=sa;Password=TU_PASSWORD_SQL;TrustServerCertificate=True;MultipleActiveResultSets=true;" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "JWTSettings:Key" "TU_CLAVE_JWT_DE_AL_MENOS_32_BYTES_SEGUROS!" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "JWTSettings:Issuer" "EnterpriseRagApi" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "JWTSettings:Audience" "EnterpriseRagClient" --project src/Presentation/EnterpriseRag.WebApi
+dotnet user-secrets set "GeminiSettings:ApiKey" "TU_GEMINI_API_KEY" --project src/Presentation/EnterpriseRag.WebApi
 ```
 
-### Paso 4: Ejecutar Migraciones de Base de Datos
+### Paso 4: Aplicar migraciones y ejecutar Backend + Frontend
 ```powershell
 dotnet ef database update --project src/Infrastructure/EnterpriseRag.Infrastructure.Persistence --startup-project src/Presentation/EnterpriseRag.WebApi --context ApplicationDbContext
 dotnet ef database update --project src/Infrastructure/EnterpriseRag.Infrastructure.Identity --startup-project src/Presentation/EnterpriseRag.WebApi --context IdentityContext
-```
 
-### Paso 5: Iniciar la API y el Frontend
-En una terminal:
-```powershell
 dotnet run --project src/Presentation/EnterpriseRag.WebApi
 ```
-*(API iniciada en `http://localhost:5235`)*
-
 En otra terminal:
 ```powershell
 cd client
 npm install
 npm run dev
 ```
-*(Frontend disponible en `http://localhost:5173`)*
 
 ---
 
-## 🧪 7. Pruebas Unitarias y Calidad
+## 10. Pruebas Unitarias y de Integración
 
-Para ejecutar la suite completa de pruebas unitarias y de aislamiento multitenant:
 ```powershell
+# Build completo de la solución
+dotnet build EnterpriseRag.slnx
+
+# Pruebas unitarias (incluye proveedores reales de Identity y pruebas Playwright)
 dotnet test tests/EnterpriseRag.UnitTests/EnterpriseRag.UnitTests.csproj
+
+# Pruebas de integración reales contra SQL Server y Qdrant (requiere Docker activo)
+dotnet test tests/EnterpriseRag.IntegrationTests/EnterpriseRag.IntegrationTests.csproj
+
+# Build del frontend
+cd client && npm run build
 ```
-Resultado verificado:
-```text
-Passed!  - Failed: 0, Passed: 26, Skipped: 0, Total: 26, Duration: 84 ms
-```
+
+Consulta el detalle de cobertura, requisitos de Playwright y aislamiento de bases de prueba en [docs/TESTING.md](docs/TESTING.md).
 
 ---
 
-## 📸 8. Guía de Capturas Recomendadas para LinkedIn / Portafolio
+## 11. Endpoints Principales Verificados
 
-Para presentar este proyecto de forma atractiva en LinkedIn y reclutadores técnicos, se sugiere tomar las siguientes capturas:
-
-1. **Dashboard de Documentos**: Mostrando la subida validada por Magic Bytes, tamaño de archivo y estado *Indexado en Qdrant*.
-2. **Ventana de Chat RAG con Citas**: Pregunta corporativa compleja y respuesta sintetizada por Gemini, desplegando el cuadro desplegable de *Fuentes Consultadas (score % y snippet citado)*.
-3. **Búsqueda Vectorial**: Vista de fragmentos recuperados con sus respectivos porcentajes de similitud coseno.
-4. **Dashboard de Qdrant**: Captura del panel web (`http://localhost:6333/dashboard`) mostrando la colección `documents_chunks` con los vectores HNSW de 768 dimensiones.
-5. **Suite de Tests en Consola**: Captura limpia de `dotnet test` mostrando los 26 tests en verde (destacando las pruebas de aislamiento multitenant y compensación Saga).
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Anónimo + Rate Limit | Crea usuario y nuevo tenant aislado |
+| `POST` | `/api/v1/auth/login` | Anónimo | Autentica y emite JWT (`tenantId` en claims) |
+| `GET` | `/api/v1/auth/confirm-email` | Anónimo | Página HTML segura (lee `#token=` y limpia URL; no muta estado) |
+| `POST` | `/api/v1/auth/confirm-email` | Anónimo + Rate Limit | Confirma correo con `{ userId, token }` |
+| `POST` | `/api/v1/auth/resend-confirmation` | Anónimo + Rate Limit | Reenvía enlace con cooldown y respuesta anti-enumeración |
+| `POST` | `/api/v1/documents/upload` | Bearer JWT | Sube, valida *Magic Bytes*, vectoriza e indexa documento |
+| `GET` | `/api/v1/documents` | Bearer JWT | Lista documentos del tenant autenticado |
+| `GET` | `/api/v1/documents/{id}` | Bearer JWT | Obtiene detalle de documento del tenant |
+| `GET` | `/api/v1/documents/{id}/chunks` | Bearer JWT | Obtiene chunks no eliminados del documento del tenant |
+| `DELETE` | `/api/v1/documents/{id}` | Bearer JWT | Elimina vectores en Qdrant, chunks/documento en SQL y archivo |
+| `POST` | `/api/v1/search` | Bearer JWT | Búsqueda semántica vectorial aislada por tenant |
+| `POST` | `/api/v1/chat` | Bearer JWT | Consulta RAG con síntesis de Gemini y fuentes citadas |
 
 ---
 
-## 👤 Autor
+## 12. Limitaciones Conocidas
 
-* **Adrián Francisco Brito Nelkitts** - *Software Architect & Backend Engineer*
-* GitHub: [@Adrixn23](https://github.com/Adrixn23)
-* Repositorio: [Adrixn23/enterprise-rag-system](https://github.com/Adrixn23/enterprise-rag-system)
+1. **Rate limiting y cooldown en memoria local:** `AddRateLimiter` y `IMemoryCache` operan por instancia; un despliegue multi-réplica requiere almacén distribuido (p. ej. Redis) o limitación en API Gateway.
+2. **JWT en `localStorage`:** El cliente SPA almacena el token en `localStorage`, lo que lo expone si ocurriera una vulnerabilidad XSS (mitigable migrando a cookies `HttpOnly; Secure; SameSite=Strict`).
+3. **Historial de chat en cliente:** Las conversaciones no se persisten en SQL Server; se guardan por `userId` en `localStorage` del navegador.
+4. **Proxies externos:** `UseForwardedHeaders` confía por defecto solo en loopback (`ForwardLimit = 1`); detrás de balanceadores externos deben registrarse `KnownProxies`/`KnownNetworks`.
+5. **Provisioning multi-usuario por tenant:** Actualmente cada registro público crea su propio tenant aislado; aún no existe flujo de invitaciones para sumar usuarios a un tenant existente.
+
+---
+
+## 13. Roadmap Realista
+
+- [ ] Flujo de invitaciones firmadas para incorporar múltiples usuarios a un mismo `TenantId`.
+- [ ] Almacenamiento distribuido (Redis) para rate limiting y cooldown en despliegues horizontales.
+- [ ] Migración de sesión del SPA a cookies `HttpOnly` con protección CSRF.
+- [ ] Persistencia opcional de historial de conversaciones en SQL Server aislada por `TenantId` y `UserId`.
+- [ ] Suite automatizada de pruebas de componentes frontend con Vitest y Testing Library.

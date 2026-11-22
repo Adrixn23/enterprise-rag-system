@@ -12,11 +12,16 @@ public class DocumentChunkRepository : GenericRepository<DocumentChunk, Guid>, I
     {
     }
 
-    public async Task<IEnumerable<DocumentChunk>> GetByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<DocumentChunk>> GetByDocumentIdAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default)
     {
+        if (documentId == Guid.Empty || tenantId == Guid.Empty)
+        {
+            return [];
+        }
+
         return await _dbSet
             .AsNoTracking()
-            .Where(c => c.DocumentId == documentId)
+            .Where(c => c.DocumentId == documentId && c.TenantId == tenantId && !c.IsDeleted)
             .OrderBy(c => c.ChunkIndex)
             .ToListAsync(cancellationToken);
     }
@@ -27,10 +32,15 @@ public class DocumentChunkRepository : GenericRepository<DocumentChunk, Guid>, I
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task DeleteByDocumentIdAsync(Guid documentId, Guid tenantId, CancellationToken cancellationToken = default)
     {
+        if (documentId == Guid.Empty || tenantId == Guid.Empty)
+        {
+            return;
+        }
+
         await _dbSet
-            .Where(c => c.DocumentId == documentId)
+            .Where(c => c.DocumentId == documentId && c.TenantId == tenantId && !c.IsDeleted)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.IsDeleted, true)
                 .SetProperty(c => c.UpdatedAt, DateTimeOffset.UtcNow),

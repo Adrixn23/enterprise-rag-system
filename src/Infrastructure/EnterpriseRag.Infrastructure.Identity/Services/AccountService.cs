@@ -11,6 +11,7 @@ using EnterpriseRag.Core.Domain.Enums;
 using EnterpriseRag.Core.Domain.Settings;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,23 +24,35 @@ public class AccountService : IAccountService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly JWTSettings _jwtSettings;
+    private readonly EmailSettings _emailSettings;
     private readonly IHostEnvironment _environment;
     private readonly IEmailSenderService _emailSender;
+    private readonly IMemoryCache _memoryCache;
     private readonly ILogger<AccountService> _logger;
+
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(2);
+    private static readonly SemaphoreSlim[] ResendLocks = Enumerable
+        .Range(0, 64)
+        .Select(_ => new SemaphoreSlim(1, 1))
+        .ToArray();
 
     public AccountService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IOptions<JWTSettings> jwtSettings,
+        IOptions<EmailSettings> emailSettings,
         IHostEnvironment environment,
         IEmailSenderService emailSender,
+        IMemoryCache memoryCache,
         ILogger<AccountService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtSettings = jwtSettings.Value;
+        _emailSettings = emailSettings.Value;
         _environment = environment;
         _emailSender = emailSender;
+        _memoryCache = memoryCache;
         _logger = logger;
     }
 
@@ -101,12 +114,23 @@ public class AccountService : IAccountService
             return Result<string>.Failure(roleErrors);
         }
 
-        // En producción, generar token y despachar enlace de verificación
+        // En producción, generar token y despachar enlace de verificación con base URL absoluta validada
+        // El token viaja en el fragmento (#token=...) para que nunca sea enviado al servidor en el GET.
         if (!isDevelopment)
         {
             var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var confirmationLink = $"/api/v1/auth/confirm-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
-            await _emailSender.SendEmailConfirmationAsync(user.Email, confirmationLink);
+            var confirmationLink = BuildConfirmationLink(user.Id, token);
+
+            try
+            {
+                await _emailSender.SendEmailConfirmationAsync(user.Email, confirmationLink);
+            }
+            catch (Exception ex)
+            {
+                // NO se elimina el usuario si falla el transporte de correo (evita pérdida de cuenta).
+                // Se permite reintentar el reenvío mediante /resend-confirmation.
+                _logger.LogError(ex, "Fallo al despachar correo de confirmación a {Email}. El usuario puede solicitar reenvío.", user.Email);
+            }
         }
 
         return Result<string>.Success(user.Id.ToString());
@@ -125,6 +149,12 @@ public class AccountService : IAccountService
             return Result.Failure(AccountErrors.InvalidConfirmationToken);
         }
 
+        if (user.EmailConfirmed)
+        {
+            // Token ya utilizado o cuenta ya confirmada previamente: evitar re-ejecuciones
+            return Result.Failure(AccountErrors.InvalidConfirmationToken);
+        }
+
         var result = await _userManager.ConfirmEmailAsync(user, token);
         if (!result.Succeeded)
         {
@@ -132,6 +162,60 @@ public class AccountService : IAccountService
         }
 
         return Result.Success();
+    }
+
+    public async Task<Result> ResendConfirmationEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            // Respuesta defensiva: éxito simulado para prevenir enumeración de usuarios
+            return Result.Success();
+        }
+
+        // Cooldown por cuenta en memoria local (single-instance) con bloqueo particionado para evitar
+        // condiciones de carrera (TOCTOU) ante solicitudes simultáneas.
+        var normalizedEmail = email.Trim().ToUpperInvariant();
+        var lockIndex = (normalizedEmail.GetHashCode(StringComparison.Ordinal) & 0x7FFFFFFF) % ResendLocks.Length;
+        var accountLock = ResendLocks[lockIndex];
+
+        await accountLock.WaitAsync();
+        try
+        {
+            var cooldownKey = $"auth:resend-cooldown:{normalizedEmail}";
+            if (_memoryCache.TryGetValue(cooldownKey, out _))
+            {
+                _logger.LogInformation("Solicitud de reenvío omitida por cooldown activo.");
+                return Result.Success();
+            }
+
+            var user = await _userManager.FindByEmailAsync(email.Trim());
+            if (user == null || user.EmailConfirmed)
+            {
+                // Protección contra User Enumeration Attack: registrar cooldown y responder éxito idéntico
+                _memoryCache.Set(cooldownKey, true, ResendCooldown);
+                return Result.Success();
+            }
+
+            try
+            {
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var confirmationLink = BuildConfirmationLink(user.Id, token);
+                await _emailSender.SendEmailConfirmationAsync(user.Email!, confirmationLink);
+
+                // Establecer cooldown únicamente tras un envío exitoso (si falla SMTP, el usuario puede reintentar)
+                _memoryCache.Set(cooldownKey, true, ResendCooldown);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fallo al reenviar correo de confirmación a {Email}.", email);
+            }
+
+            return Result.Success();
+        }
+        finally
+        {
+            accountLock.Release();
+        }
     }
 
     public async Task<Result<AuthenticationResponseDto>> AuthenticationAsync(LoginRequestDto request)
@@ -209,5 +293,11 @@ public class AccountService : IAccountService
         var token = tokenHandler.CreateToken(tokenDescriptor);
 
         return tokenHandler.WriteToken(token);
+    }
+
+    private string BuildConfirmationLink(Guid userId, string token)
+    {
+        var baseUrl = _emailSettings.PublicBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/v1/auth/confirm-email?userId={userId}#token={Uri.EscapeDataString(token)}";
     }
 }

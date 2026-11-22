@@ -2,6 +2,7 @@ using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Account;
 using EnterpriseRag.Core.Application.Contracts.Email;
 using EnterpriseRag.Core.Domain.Settings;
+using EnterpriseRag.Infrastructure.Identity.Configuration;
 using EnterpriseRag.Infrastructure.Identity.Context;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using EnterpriseRag.Infrastructure.Identity.Seeds;
@@ -22,15 +23,26 @@ public static class InfrastructureIdentityDependencies
 {
     public static IServiceCollection AddInfrastructureIdentityDependencies(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
-        // 1. Vincular y validar JWTSettings al inicio de la aplicación (Fail-Fast)
+        // 1. Vincular y validar JWTSettings y EmailSettings al inicio de la aplicación (Fail-Fast)
         services.AddOptions<JWTSettings>()
             .Bind(configuration.GetSection(JWTSettings.SectionName))
             .ValidateDataAnnotations()
             .Validate(jwt => jwt.Validate(new System.ComponentModel.DataAnnotations.ValidationContext(jwt)).Any() == false,
                 "La configuración de JWTSettings no superó la validación criptográfica.")
             .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<EmailSettings>, EmailSettingsValidator>();
+        services.AddOptions<EmailSettings>()
+            .Bind(configuration.GetSection(EmailSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Memoria caché local para cooldown de reenvío de confirmación por cuenta
+        // NOTA: En despliegues multi-instancia, reemplazar IMemoryCache por IDistributedCache (ej. Redis).
+        services.AddMemoryCache();
 
         // 2. Registrar el DbContext de Identity con SQL Server
         services.AddDbContext<IdentityContext>(options =>
@@ -58,8 +70,16 @@ public static class InfrastructureIdentityDependencies
         .AddEntityFrameworkStores<IdentityContext>()
         .AddDefaultTokenProviders();
 
-        // 4. Registrar la inyección de dependencias para IAccountService y IEmailSenderService
-        services.AddTransient<IEmailSenderService, LoggingEmailSenderService>();
+        // 4. Registrar la inyección de dependencias para IAccountService y IEmailSenderService sin BuildServiceProvider()
+        if (environment.IsDevelopment())
+        {
+            services.AddTransient<IEmailSenderService, LoggingEmailSenderService>();
+        }
+        else
+        {
+            services.AddTransient<IEmailSenderService, SmtpEmailSenderService>();
+        }
+
         services.AddTransient<IAccountService, AccountService>();
 
         // 5. Configurar la autenticación JWT Bearer

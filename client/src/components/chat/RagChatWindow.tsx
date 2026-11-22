@@ -7,39 +7,71 @@ interface RagChatWindowProps {
   userId: string;
 }
 
+interface ChatState {
+  ownerUserId: string;
+  messages: ChatMessage[];
+}
+
+function loadMessagesForUser(userId: string): ChatMessage[] {
+  if (!userId) return [];
+  try {
+    const saved = localStorage.getItem(`rag_chat_history_${userId}`);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
   const chatStorageKey = `rag_chat_history_${userId}`;
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(chatStorageKey);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [chatState, setChatState] = useState<ChatState>(() => ({
+    ownerUserId: userId,
+    messages: loadMessagesForUser(userId),
+  }));
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeUserIdRef = useRef<string>(userId);
+  activeUserIdRef.current = userId;
+
+  // Sincronizar el estado del historial cuando cambie 'userId' sin desmontar el componente
+  useEffect(() => {
+    setChatState({
+      ownerUserId: userId,
+      messages: loadMessagesForUser(userId),
+    });
+    setChatError(null);
+    setChatInput('');
+    setChatLoading(false);
+  }, [userId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Persistir únicamente cuando el estado en memoria pertenece al userId activo (previene escrituras obsoletas)
   useEffect(() => {
+    if (!userId || chatState.ownerUserId !== userId) return;
+
     try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(chatMessages));
+      localStorage.setItem(chatStorageKey, JSON.stringify(chatState.messages));
     } catch {
       // Ignorar si el almacenamiento local está lleno
     }
     scrollToBottom();
-  }, [chatMessages, chatLoading, chatStorageKey]);
+  }, [chatState, chatLoading, chatStorageKey, userId]);
+
+  const chatMessages = chatState.ownerUserId === userId ? chatState.messages : [];
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || chatLoading) return;
 
+    const requestUserId = userId;
     const userQuery = chatInput.trim();
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -48,13 +80,19 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
+    setChatState(prev => ({
+      ownerUserId: requestUserId,
+      messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), userMsg],
+    }));
     setChatInput('');
     setChatLoading(true);
     setChatError(null);
 
     try {
       const res = await api.ask(userQuery);
+      // Descartar respuesta si el usuario cambió durante la petición en vuelo
+      if (activeUserIdRef.current !== requestUserId) return;
+
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -62,8 +100,13 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
         sources: res.sources,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setChatMessages(prev => [...prev, assistantMsg]);
+      setChatState(prev => ({
+        ownerUserId: requestUserId,
+        messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), assistantMsg],
+      }));
     } catch (err: unknown) {
+      if (activeUserIdRef.current !== requestUserId) return;
+
       const msg = err instanceof Error ? err.message : 'Error desconocido al procesar respuesta';
       setChatError(msg);
       const errorMsg: ChatMessage = {
@@ -72,14 +115,19 @@ export const RagChatWindow: React.FC<RagChatWindowProps> = ({ userId }) => {
         content: `Error al procesar la respuesta: ${msg}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setChatMessages(prev => [...prev, errorMsg]);
+      setChatState(prev => ({
+        ownerUserId: requestUserId,
+        messages: [...(prev.ownerUserId === requestUserId ? prev.messages : []), errorMsg],
+      }));
     } finally {
-      setChatLoading(false);
+      if (activeUserIdRef.current === requestUserId) {
+        setChatLoading(false);
+      }
     }
   };
 
   const handleClearChat = () => {
-    setChatMessages([]);
+    setChatState({ ownerUserId: userId, messages: [] });
     localStorage.removeItem(chatStorageKey);
   };
 

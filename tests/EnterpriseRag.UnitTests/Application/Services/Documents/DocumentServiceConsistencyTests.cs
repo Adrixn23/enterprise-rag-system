@@ -145,7 +145,7 @@ public class DocumentServiceConsistencyTests
 
         // Verificar que SQL Server y FileStorage quedaron INTACTOS para reintentos
         _documentChunkRepositoryMock.Verify(
-            x => x.DeleteByDocumentIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            x => x.DeleteByDocumentIdAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
 
         _documentRepositoryMock.Verify(
