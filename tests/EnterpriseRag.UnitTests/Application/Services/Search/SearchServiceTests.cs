@@ -136,4 +136,71 @@ public class SearchServiceTests
             x => x.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task SearchAsync_WhenDocumentIsMissingOrDeletedInSql_ShouldExcludeOrphanPointsAndReturnOnlyValidOnes()
+    {
+        var tenantId = Guid.NewGuid();
+        var validDocId = Guid.NewGuid();
+        var deletedOrMissingDocId = Guid.NewGuid();
+        var request = new SearchQueryRequestDto
+        {
+            Query = "politica de seguridad",
+            Limit = 5,
+            MinScore = 0.60f
+        };
+
+        var fakeEmbedding = new ReadOnlyMemory<float>(new float[768]);
+        _embeddingServiceMock
+            .Setup(x => x.GenerateEmbeddingAsync(request.Query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ReadOnlyMemory<float>>.Success(fakeEmbedding));
+
+        _vectorStoreServiceMock
+            .Setup(x => x.SearchAsync(fakeEmbedding, tenantId, request.Limit, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<List<VectorSearchResultDto>>.Success(
+            [
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = Guid.Empty,
+                    ChunkIndex = 0,
+                    Content = "Punto huérfano con Guid.Empty.",
+                    Score = 0.90f
+                },
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = deletedOrMissingDocId,
+                    ChunkIndex = 0,
+                    Content = "Punto de documento eliminado en SQL.",
+                    Score = 0.85f
+                },
+                new VectorSearchResultDto
+                {
+                    PointId = Guid.NewGuid(),
+                    DocumentId = validDocId,
+                    ChunkIndex = 0,
+                    Content = "Punto válido activo.",
+                    Score = 0.80f
+                }
+            ]));
+
+        _documentRepositoryMock
+            .Setup(x => x.GetFileNamesByIdsAsync(
+                It.Is<IEnumerable<Guid>>(ids => !ids.Contains(Guid.Empty) && ids.Contains(validDocId) && ids.Contains(deletedOrMissingDocId)),
+                tenantId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { { validDocId, "Politica_Activa.pdf" } });
+
+        var result = await _sut.SearchAsync(request, tenantId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(1);
+        result.Value![0].DocumentId.Should().Be(validDocId);
+        result.Value[0].DocumentFileName.Should().Be("Politica_Activa.pdf");
+
+        _documentRepositoryMock.Verify(
+            x => x.GetFileNamesByIdsAsync(It.IsAny<IEnumerable<Guid>>(), tenantId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

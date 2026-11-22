@@ -27,4 +27,7 @@ public static class VectorStoreErrors
 
     public static Error InvalidTenantId =>
         new("VectorStore.InvalidTenantId", "El identificador del tenant proporcionado no es válido.");
+
+    public static Error InvalidDocumentId =>
+        new("VectorStore.InvalidDocumentId", "El identificador del documento proporcionado no es válido.");
 }

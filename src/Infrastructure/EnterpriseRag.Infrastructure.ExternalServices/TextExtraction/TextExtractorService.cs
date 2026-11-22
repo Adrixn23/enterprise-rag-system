@@ -3,6 +3,7 @@ namespace EnterpriseRag.Infrastructure.ExternalServices.TextExtraction;
 using System.Text;
 using EnterpriseRag.Core.Application.Contracts.TextExtraction;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Content;
 
 public class TextExtractorService : ITextExtractorService
 {
@@ -132,18 +133,137 @@ public class TextExtractorService : ITextExtractorService
             foreach (var page in document.GetPages())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!string.IsNullOrWhiteSpace(page.Text))
+                var pageText = ExtractPageTextWithSpacing(page);
+                if (!string.IsNullOrWhiteSpace(pageText))
                 {
-                    stringBuilder.AppendLine(page.Text);
+                    if (stringBuilder.Length > 0)
+                    {
+                        stringBuilder.AppendLine();
+                    }
+                    stringBuilder.Append(pageText);
                 }
             }
 
-            return stringBuilder.ToString();
+            return NormalizePdfSpacingDiacritics(stringBuilder.ToString());
         }
         finally
         {
             memoryStream?.Dispose();
         }
+    }
+
+    private static string ExtractPageTextWithSpacing(Page page)
+    {
+        var words = page.GetWords()
+            .Where(w => !string.IsNullOrWhiteSpace(w.Text))
+            .ToList();
+
+        if (words.Count == 0)
+        {
+            return page.Text ?? string.Empty;
+        }
+
+        // Agrupar palabras por línea visual usando su coordenada vertical (Bottom) y ordenar de izquierda a derecha
+        var sortedByY = words
+            .OrderByDescending(w => w.BoundingBox.Bottom)
+            .ToList();
+
+        var lines = new List<List<Word>>();
+        var currentLine = new List<Word> { sortedByY[0] };
+        double currentBaseline = sortedByY[0].BoundingBox.Bottom;
+        double currentHeight = sortedByY[0].BoundingBox.Height;
+
+        for (int i = 1; i < sortedByY.Count; i++)
+        {
+            var word = sortedByY[i];
+            double tolerance = Math.Max(2.0, Math.Max(currentHeight, word.BoundingBox.Height) * 0.45);
+
+            if (Math.Abs(word.BoundingBox.Bottom - currentBaseline) <= tolerance)
+            {
+                currentLine.Add(word);
+            }
+            else
+            {
+                lines.Add(currentLine);
+                currentLine = [word];
+                currentBaseline = word.BoundingBox.Bottom;
+                currentHeight = word.BoundingBox.Height;
+            }
+        }
+
+        lines.Add(currentLine);
+
+        var pageBuilder = new StringBuilder();
+        foreach (var line in lines)
+        {
+            var lineText = string.Join(
+                " ",
+                line.OrderBy(w => w.BoundingBox.Left)
+                    .Select(w => w.Text.Trim()));
+
+            if (!string.IsNullOrWhiteSpace(lineText))
+            {
+                if (pageBuilder.Length > 0)
+                {
+                    pageBuilder.AppendLine();
+                }
+                pageBuilder.Append(lineText);
+            }
+        }
+
+        return pageBuilder.ToString();
+    }
+
+    /// <summary>
+    /// Normaliza únicamente secuencias de acentos espaciadores OT1/LaTeX emitidos por extractores PDF
+    /// (p. ej. "´u" -> "ú", "´ı" -> "í", "˜n" -> "ñ"), sin alterar caracteres UTF-8 ya compuestos ni texto válido.
+    /// </summary>
+    public static string NormalizePdfSpacingDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text) ||
+            (text.IndexOf('\u00B4') < 0 && text.IndexOf('\u02DC') < 0 && text.IndexOf('\u00A8') < 0))
+        {
+            return text;
+        }
+
+        var sb = new StringBuilder(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            char current = text[i];
+            if (i + 1 < text.Length)
+            {
+                char? combined = (current, text[i + 1]) switch
+                {
+                    ('\u00B4', 'a') => 'á',
+                    ('\u00B4', 'e') => 'é',
+                    ('\u00B4', 'i') => 'í',
+                    ('\u00B4', '\u0131') => 'í', // dotless i (OT1)
+                    ('\u00B4', 'o') => 'ó',
+                    ('\u00B4', 'u') => 'ú',
+                    ('\u00B4', 'A') => 'Á',
+                    ('\u00B4', 'E') => 'É',
+                    ('\u00B4', 'I') => 'Í',
+                    ('\u00B4', 'O') => 'Ó',
+                    ('\u00B4', 'U') => 'Ú',
+                    ('\u02DC', 'n') => 'ñ',
+                    ('\u02DC', 'N') => 'Ñ',
+                    ('\u00A8', 'u') => 'ü',
+                    ('\u00A8', 'U') => 'Ü',
+                    _ => null
+                };
+
+                if (combined.HasValue)
+                {
+                    sb.Append(combined.Value);
+                    i++;
+                    continue;
+                }
+            }
+
+            sb.Append(current);
+        }
+
+        return sb.ToString();
     }
 
     private static async Task<string> ExtractFromTextStreamAsync(Stream fileStream, CancellationToken cancellationToken)

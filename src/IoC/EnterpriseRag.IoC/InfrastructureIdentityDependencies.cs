@@ -1,6 +1,8 @@
 using System.Text;
 using EnterpriseRag.Core.Application.Contracts.Account;
+using EnterpriseRag.Core.Application.Contracts.Email;
 using EnterpriseRag.Core.Domain.Settings;
+using EnterpriseRag.Infrastructure.Identity.Configuration;
 using EnterpriseRag.Infrastructure.Identity.Context;
 using EnterpriseRag.Infrastructure.Identity.Entities;
 using EnterpriseRag.Infrastructure.Identity.Seeds;
@@ -21,9 +23,10 @@ public static class InfrastructureIdentityDependencies
 {
     public static IServiceCollection AddInfrastructureIdentityDependencies(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
-        // 1. Vincular y validar JWTSettings al inicio de la aplicación (Fail-Fast)
+        // 1. Vincular y validar JWTSettings y EmailSettings al inicio de la aplicación (Fail-Fast)
         services.AddOptions<JWTSettings>()
             .Bind(configuration.GetSection(JWTSettings.SectionName))
             .ValidateDataAnnotations()
@@ -31,11 +34,29 @@ public static class InfrastructureIdentityDependencies
                 "La configuración de JWTSettings no superó la validación criptográfica.")
             .ValidateOnStart();
 
-        // 2. Registrar el DbContext de Identity con SQL Server
+        services.AddSingleton<IValidateOptions<EmailSettings>, EmailSettingsValidator>();
+        services.AddOptions<EmailSettings>()
+            .Bind(configuration.GetSection(EmailSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Caché distribuida (IDistributedCache) para cooldowns entre réplicas;
+        // en producción multi-instancia se enlaza con Redis (ej. AddStackExchangeRedisCache).
+        services.AddDistributedMemoryCache();
+
+        // 2. Registrar el DbContext de Identity con SQL Server y resiliencia transitoria
         services.AddDbContext<IdentityContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("IdentityConnection"),
-                b => b.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName)));
+                b =>
+                {
+                    b.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName);
+                    b.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorNumbersToAdd: null);
+                    b.CommandTimeout(30);
+                }));
 
         // 3. Registrar ASP.NET Core Identity con políticas de contraseñas y bloqueo robustas
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
@@ -57,7 +78,16 @@ public static class InfrastructureIdentityDependencies
         .AddEntityFrameworkStores<IdentityContext>()
         .AddDefaultTokenProviders();
 
-        // 4. Registrar la inyección de dependencias para IAccountService
+        // 4. Registrar la inyección de dependencias para IAccountService y IEmailSenderService sin BuildServiceProvider()
+        if (environment.IsDevelopment())
+        {
+            services.AddTransient<IEmailSenderService, LoggingEmailSenderService>();
+        }
+        else
+        {
+            services.AddTransient<IEmailSenderService, SmtpEmailSenderService>();
+        }
+
         services.AddTransient<IAccountService, AccountService>();
 
         // 5. Configurar la autenticación JWT Bearer

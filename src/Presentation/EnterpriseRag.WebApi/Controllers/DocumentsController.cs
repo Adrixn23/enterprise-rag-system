@@ -1,7 +1,9 @@
 namespace EnterpriseRag.WebApi.Controllers;
 
 using EnterpriseRag.Core.Application.Contracts.Documents;
+using EnterpriseRag.Core.Application.DTOs.Common;
 using EnterpriseRag.Core.Application.DTOs.Documents;
+using EnterpriseRag.WebApi.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,7 +23,7 @@ public class DocumentsController : ControllerBase
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(50 * 1024 * 1024)]
-    [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(DocumentResponseDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Upload(
@@ -45,24 +47,15 @@ public class DocumentsController : ControllerBase
 
         var request = new UploadDocumentRequestDto
         {
-            File = file,
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            FileSizeBytes = file.Length,
+            OpenReadStream = file.OpenReadStream,
             TenantId = tenantId
         };
 
-        var result = await _documentService.UploadDocumentAsync(request, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = firstError?.Code ?? "Document.UploadFailed",
-                Detail = firstError?.Description ?? "Failed to upload and process document."
-            });
-        }
-
-        return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
+        var result = await _documentService.EnqueueDocumentAsync(request, cancellationToken);
+        return result.ToActionResult(doc => AcceptedAtAction(nameof(GetById), new { id = doc.Id }, doc));
     }
 
     [HttpGet("{id:guid}")]
@@ -77,33 +70,24 @@ public class DocumentsController : ControllerBase
         }
 
         var result = await _documentService.GetByIdAsync(id, tenantId, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = firstError?.Code ?? "Document.NotFound",
-                Detail = firstError?.Description ?? "The requested document was not found."
-            });
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult();
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<DocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResponseDto<DocumentResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetByTenant(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetByTenant(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
         if (!TryResolveTenantId(out var tenantId))
         {
             return Unauthorized();
         }
 
-        var result = await _documentService.GetByTenantAsync(tenantId, cancellationToken);
-        return Ok(result.Value);
+        var result = await _documentService.GetPagedByTenantAsync(tenantId, page, pageSize, cancellationToken);
+        return result.ToActionResult();
     }
 
     [HttpGet("{id:guid}/chunks")]
@@ -118,19 +102,7 @@ public class DocumentsController : ControllerBase
         }
 
         var result = await _documentService.GetChunksByDocumentIdAsync(id, tenantId, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = firstError?.Code ?? "Document.NotFound",
-                Detail = firstError?.Description ?? "The chunks for the requested document were not found."
-            });
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult();
     }
 
     [HttpDelete("{id:guid}")]
@@ -145,19 +117,7 @@ public class DocumentsController : ControllerBase
         }
 
         var result = await _documentService.DeleteDocumentAsync(id, tenantId, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = firstError?.Code ?? "Document.NotFound",
-                Detail = firstError?.Description ?? "The requested document could not be found or deleted."
-            });
-        }
-
-        return NoContent();
+        return result.ToActionResult();
     }
 
     private bool TryResolveTenantId(out Guid tenantId)

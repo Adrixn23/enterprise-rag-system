@@ -7,4 +7,6 @@ public interface IAccountService
 {
     Task<Result<AuthenticationResponseDto>> AuthenticationAsync(LoginRequestDto request);
     Task<Result<string>> RegisterAsync(RegisterRequestDto request);
+    Task<Result> ConfirmEmailAsync(Guid userId, string token);
+    Task<Result> ResendConfirmationEmailAsync(string email);
 }

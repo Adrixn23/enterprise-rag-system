@@ -2,6 +2,7 @@ namespace EnterpriseRag.WebApi.Controllers;
 
 using EnterpriseRag.Core.Application.Contracts.Chat;
 using EnterpriseRag.Core.Application.DTOs.Chat;
+using EnterpriseRag.WebApi.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,19 +33,7 @@ public class ChatController : ControllerBase
         }
 
         var result = await _chatService.AskAsync(request, tenantId, cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            var firstError = result.Errors.FirstOrDefault();
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = firstError?.Code ?? "Chat.Failed",
-                Detail = firstError?.Description ?? "Ocurrió un error al procesar la consulta en el asistente de IA."
-            });
-        }
-
-        return Ok(result.Value);
+        return result.ToActionResult();
     }
 
     private bool TryResolveTenantId(out Guid tenantId)

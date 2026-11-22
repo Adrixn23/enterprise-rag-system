@@ -14,6 +14,9 @@ public class Document : BaseEntity
     // Tamaño del archivo en bytes para validar limites y cuotas de almacenamiento
     public long FileSizeBytes { get; set; }
 
+    // Hash SHA-256 en hexadecimal (64 chars) para deduplicacion por tenant
+    public string? FileHash { get; set; }
+
     // Ruta o URI donde esta guardado el archivo fisico (nunca guardamos binarios en SQL)
     public required string StoragePath { get; set; }
 
