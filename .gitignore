@@ -5,6 +5,14 @@
 
 # dotenv files
 .env
+.env*.local
+!.env.example
+
+
+# User Uploads and Storage
+[Ss]torage/[Uu]ploads/
+**/Storage/Uploads/**
+**/Storage/Uploads/
 
 # User-specific files
 *.rsuser
@@ -12,6 +20,11 @@
 *.user
 *.userosscache
 *.sln.docstates
+
+# User Uploads and Storage
+[Ss]torage/[Uu]ploads/
+**/Storage/Uploads/**
+**/Storage/Uploads/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -480,3 +493,4 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+/.agents/Skills
